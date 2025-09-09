@@ -1,0 +1,20 @@
+# fly.toml app configuration file generated for lang-a2a-cardio on 2025-09-09T15:25:26-07:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'lang-a2a-cardio'
+primary_region = 'sea'
+
+[http_service]
+  internal_port = 10000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1

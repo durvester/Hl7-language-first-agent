@@ -1,0 +1,29 @@
+
+[project]
+name = "a2a-sample-agent-langgraph"
+version = "0.1.0"
+description = "A2A compliant cardiology referral agent for Dr. Walter Reed's clinic"
+requires-python = ">=3.13"
+dependencies = [
+    "click>=8.1.8",
+    "httpx>=0.28.1",
+    "anthropic>=0.34.0",
+    "langchain-anthropic",
+    "langgraph>=0.3.18",
+    "pydantic>=2.10.6",
+    "python-dotenv>=1.1.0",
+    "uvicorn>=0.34.2",
+    "sse-starlette>=2.3.6",
+    "starlette>=0.46.2",
+    "a2a-sdk>=0.3.0",
+    
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0"
+]
+
+[tool.setuptools]
+py-modules = []
