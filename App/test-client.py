@@ -115,7 +115,7 @@ async def main() -> None:
             'message': {
                 'role': 'user',
                 'parts': [
-                    {'kind': 'text', 'text': 'how much is 10 USD in INR?'}
+                    {'kind': 'text', 'text': 'I need to verify Dr. John Smith from Chicago, IL for a cardiology referral'}
                 ],
                 'message_id': uuid4().hex,
             },
@@ -135,7 +135,7 @@ async def main() -> None:
                 'parts': [
                     {
                         'kind': 'text',
-                        'text': 'How much is the exchange rate for 1 USD?',
+                        'text': 'I am Dr. Sarah Johnson and need to refer a patient to Dr Walter Reed',
                     }
                 ],
                 'message_id': uuid4().hex,
@@ -155,7 +155,7 @@ async def main() -> None:
         second_send_message_payload_multiturn: dict[str, Any] = {
             'message': {
                 'role': 'user',
-                'parts': [{'kind': 'text', 'text': 'CAD'}],
+                'parts': [{'kind': 'text', 'text': 'My NPI is 1234567890 and I practice in Boston, MA'}],
                 'message_id': uuid4().hex,
                 'task_id': task_id,
                 'context_id': context_id,

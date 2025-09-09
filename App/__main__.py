@@ -50,11 +50,11 @@ def main(host, port):
         
         capabilities = AgentCapabilities(streaming=True, push_notifications=True)
         skill = AgentSkill(
-            id='convert_currency',
-            name='Currency Exchange Rates Tool',
-            description='Helps with exchange values between various currencies',
-            tags=['currency conversion', 'currency exchange'],
-            examples=['What is exchange rate between USD and GBP?'],
+            id='provider_verification',
+            name='Healthcare Provider Verification',
+            description='Verifies healthcare provider identity for cardiology referrals to Dr Walter Reed',
+            tags=['healthcare', 'provider verification', 'cardiology referrals', 'NPPES'],
+            examples=['Verify Dr. John Smith from Chicago for referral', 'Check provider identity for Jane Doe, NPI 1234567890'],
         )
         # Use HTTPS for production deployment, HTTP for local development
         if host == '0.0.0.0' and port == 10000:

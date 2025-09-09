@@ -73,7 +73,7 @@ class GenericAgentExecutor(AgentExecutor):
                 else:
                     await updater.add_artifact(
                         [Part(root=TextPart(text=item['content']))],
-                        name='conversion_result',
+                        name='verification_result',
                     )
                     await updater.complete()
                     break

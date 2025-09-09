@@ -1,80 +1,72 @@
-# LangGraph Currency Agent with A2A Protocol
+# LangGraph Cardiology Referral Agent with A2A Protocol
 
-This sample demonstrates a currency conversion agent built with [LangGraph](https://langchain-ai.github.io/langgraph/) and exposed through the A2A protocol. It showcases conversational interactions with support for multi-turn dialogue and streaming responses.
+This sample demonstrates a healthcare provider verification agent built with [LangGraph](https://langchain-ai.github.io/langgraph/) and exposed through the A2A protocol. It specializes in verifying healthcare provider identities for cardiology referrals to Dr. Walter Reed's clinic, enabling secure and compliant patient referral workflows.
 
 ## How It Works
 
-This agent uses LangGraph with LLM (for example Google Gemini..) to provide currency exchange information through a ReAct agent pattern. The A2A protocol enables standardized interaction with the agent, allowing clients to send requests and receive real-time updates.
+This agent uses LangGraph with LLM (Claude-3.5-Sonnet) to verify healthcare provider identities through the NPPES NPI Registry using a ReAct agent pattern. The A2A protocol enables standardized interaction with the agent, allowing referring providers to verify their credentials for secure patient referrals.
 
 ```mermaid
 sequenceDiagram
-    participant Client as A2A Client
+    participant Provider as Referring Provider
     participant Server as A2A Server
     participant Agent as LangGraph Agent
-    participant API as Frankfurter API
+    participant NPPES as NPPES NPI Registry
 
-    Client->>Server: Send task with currency query
-    Server->>Agent: Forward query to currency agent
-
-    alt Complete Information
-        Agent->>API: Call get_exchange_rate tool
-        API->>Agent: Return exchange rate data
-        Agent->>Server: Process data & return result
-        Server->>Client: Respond with currency information
-    else Incomplete Information
-        Agent->>Server: Request additional input
-        Server->>Client: Set state to "input-required"
-        Client->>Server: Send additional information
-        Server->>Agent: Forward additional info
-        Agent->>API: Call get_exchange_rate tool
-        API->>Agent: Return exchange rate data
-        Agent->>Server: Process data & return result
-        Server->>Client: Respond with currency information
+    Provider->>Server: Send referral request with provider info
+    Server->>Agent: Forward provider verification request
+    
+    alt Complete Provider Information
+        Agent->>NPPES: Call get_referring_provider_identity tool
+        NPPES->>Agent: Return provider verification data
+        Agent->>Server: Process data & return verification result
+        Server->>Provider: Respond with verification status
+    else Incomplete Provider Information
+        Agent->>Server: Request additional provider details
+        Server->>Provider: Set state to "input-required"
+        Provider->>Server: Send additional information (NPI, city, state)
+        Server->>Agent: Forward additional provider info
+        Agent->>NPPES: Call get_referring_provider_identity tool
+        NPPES->>Agent: Return provider verification data
+        Agent->>Server: Process data & return verification result
+        Server->>Provider: Respond with verification status
     end
 
     alt With Streaming
-        Note over Client,Server: Real-time status updates
-        Server->>Client: "Looking up exchange rates..."
-        Server->>Client: "Processing exchange rates..."
-        Server->>Client: Final result
+        Note over Provider,Server: Real-time status updates
+        Server->>Provider: "Looking up the referring provider's identity..."
+        Server->>Provider: "Processing the referring provider's identity.."
+        Server->>Provider: Final verification result
     end
 ```
 
 ## Key Features
 
-- **Multi-turn Conversations**: Agent can request additional information when needed
-- **Real-time Streaming**: Provides status updates during processing
+- **Provider Identity Verification**: Uses official NPPES NPI Registry for healthcare provider authentication
+- **Multi-turn Conversations**: Agent can request additional information (NPI, location) when needed
+- **Real-time Streaming**: Provides status updates during verification processing
 - **Push Notifications**: Support for webhook-based notifications
-- **Conversational Memory**: Maintains context across interactions
-- **Currency Exchange Tool**: Integrates with Frankfurter API for real-time rates
+- **Conversational Memory**: Maintains context across verification interactions
+- **NPPES Integration**: Direct integration with CMS National Provider Identifier registry
 
 ## Prerequisites
 
 - Python 3.12 or higher
 - [UV](https://docs.astral.sh/uv/)
-- Access to an LLM and API Key
+- Anthropic API Key for Claude model access
 
 ## Setup & Running
 
-1. Navigate to the samples directory:
+1. Navigate to the project directory:
 
    ```bash
-   cd samples/python/agents/langgraph
+   cd Hl7-language-first-agent
    ```
 
 2. Create an environment file with your API key:
 
    ```bash
-   If you're using a Google Gemini model (gemini-pro, etc.):
-   echo "GOOGLE_API_KEY=your_api_key_here" > .env
-  
-   
-   If you're using OpenAI or any compatible API (e.g., local LLM via Ollama, LM Studio, etc.):
-
-   echo "API_KEY=your_api_key_here" > .env  (not neccessary if have no api key)
-   echo "TOOL_LLM_URL=your_llm_url" > .env
-   echo "TOOL_LLM_NAME=your_llm_name" > .env
-
+   echo "ANTHROPIC_API_KEY=your_anthropic_api_key_here" > .env
    ```
 
 3. Run the agent:
@@ -90,23 +82,23 @@ sequenceDiagram
 4. In a separate terminal, run the test client:
 
    ```bash
-   uv run app/test_client.py
+   uv run app/test-client.py
    ```
 
 ## Build Container Image
 
 Agent can also be built using a container file.
 
-1. Navigate to the `samples/python/agents/langgraph` directory:
+1. Navigate to the project directory:
 
   ```bash
-  cd samples/python/agents/langgraph
+  cd Hl7-language-first-agent
   ```
 
 2. Build the container file
 
     ```bash
-    podman build . -t langgraph-a2a-server
+    podman build . -t langgraph-cardiology-agent
     ```
 
 > [!Tip]  
@@ -115,10 +107,10 @@ Agent can also be built using a container file.
 3. Run your container
 
     ```bash
-    podman run -p 10000:10000 -e GOOGLE_API_KEY=your_api_key_here langgraph-a2a-server
+    podman run -p 10000:10000 -e ANTHROPIC_API_KEY=your_api_key_here langgraph-cardiology-agent
     ```
 
-4. Run A2A client (follow step 5 from the section above)
+4. Run A2A client (follow step 4 from the section above)
 
 > [!Important]
 > * **Access URL:** You must access the A2A client through the URL `0.0.0.0:10000`. Using `localhost` will not work.
@@ -126,21 +118,23 @@ Agent can also be built using a container file.
 
 ## Technical Implementation
 
-- **LangGraph ReAct Agent**: Uses the ReAct pattern for reasoning and tool usage
-- **Streaming Support**: Provides incremental updates during processing
-- **Checkpoint Memory**: Maintains conversation state between turns
+- **LangGraph ReAct Agent**: Uses the ReAct pattern for reasoning and NPPES tool usage
+- **Streaming Support**: Provides incremental updates during provider verification
+- **Checkpoint Memory**: Maintains conversation state between verification turns
 - **Push Notification System**: Webhook-based updates with JWK authentication
 - **A2A Protocol Integration**: Full compliance with A2A specifications
+- **NPPES Integration**: Robust error handling and rate limiting for CMS API calls
 
 ## Limitations
 
 - Only supports text-based input/output (no multi-modal support)
-- Uses Frankfurter API which has limited currency options
+- Uses NPPES API which may have rate limits during peak usage
 - Memory is session-based and not persisted between server restarts
+- Provider verification limited to US healthcare providers in NPPES registry
 
 ## Examples
 
-**Synchronous request**
+**Synchronous provider verification request**
 
 Request:
 
@@ -159,7 +153,7 @@ Content-Type: application/json
             "parts": [
                 {
                     "kind": "text",
-                    "text": "how much is 10 USD in INR?"
+                    "text": "I need to verify Dr. John Smith from Chicago, IL for a cardiology referral"
                 }
             ],
             "role": "user"
@@ -178,11 +172,11 @@ Response:
         "artifacts": [
             {
                 "artifactId": "08373241-a745-4abe-a78b-9ca60882bcc6",
-                "name": "conversion_result",
+                "name": "verification_result",
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "10 USD is 856.2 INR."
+                        "text": "Found 2 provider(s) matching 'John Smith' in Chicago, IL:\n\n1. Dr. John Michael Smith, MD\n   NPI: 1234567890\n   Status: Active\n   Location: Chicago, IL\n   Enumeration Date: 2015-03-15\n\n2. Dr. John Robert Smith, DO\n   NPI: 0987654321\n   Status: Active\n   Location: Chicago, IL\n   Enumeration Date: 2018-07-22\n\nYour identity has been verified. Please confirm which provider above matches you for accurate referral processing."
                     }
                 ]
             }
@@ -196,7 +190,7 @@ Response:
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "how much is 10 USD in INR?"
+                        "text": "I need to verify Dr. John Smith from Chicago, IL for a cardiology referral"
                     }
                 ],
                 "role": "user",
@@ -209,7 +203,7 @@ Response:
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "Looking up the exchange rates..."
+                        "text": "Looking up the referring provider's identity..."
                     }
                 ],
                 "role": "agent",
@@ -222,7 +216,7 @@ Response:
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "Processing the exchange rates.."
+                        "text": "Processing the referring provider's identity.."
                     }
                 ],
                 "role": "agent",
@@ -238,7 +232,7 @@ Response:
 }
 ```
 
-**Multi-turn example**
+**Multi-turn provider verification example**
 
 Request - Seq 1:
 
@@ -257,7 +251,7 @@ Content-Type: application/json
             "parts": [
                 {
                     "kind": "text",
-                    "text": "How much is the exchange rate for 1 USD?"
+                    "text": "I am Dr. Sarah Johnson and need to refer a patient to Dr Walter Reed"
                 }
             ],
             "role": "user"
@@ -282,7 +276,7 @@ Response - Seq 2:
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "How much is the exchange rate for 1 USD?"
+                        "text": "I am Dr. Sarah Johnson and need to refer a patient to Dr Walter Reed"
                     }
                 ],
                 "role": "user",
@@ -299,7 +293,7 @@ Response - Seq 2:
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "Please specify which currency you would like to convert to."
+                        "text": "To verify your identity for referrals to Dr Walter Reed, I need your complete information. Please provide your city and state, or your NPI number for verification."
                     }
                 ],
                 "role": "agent",
@@ -329,7 +323,7 @@ Content-Type: application/json
             "parts": [
                 {
                     "kind": "text",
-                    "text": "CAD"
+                    "text": "My NPI is 1234567890 and I practice in Boston, MA"
                 }
             ],
             "role": "user",
@@ -349,11 +343,11 @@ Response - Seq 4:
         "artifacts": [
             {
                 "artifactId": "08373241-a745-4abe-a78b-9ca60882bcc6",
-                "name": "conversion_result",
+                "name": "verification_result",
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "The exchange rate for 1 USD to CAD is 1.3739."
+                        "text": "Identity verified: Dr. Sarah Elizabeth Johnson, MD\nNPI: 1234567890\nStatus: Active\nLocation: Boston, MA\nYour identity has been successfully verified for referrals to Dr Walter Reed."
                     }
                 ]
             }
@@ -367,7 +361,7 @@ Response - Seq 4:
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "How much is the exchange rate for 1 USD?"
+                        "text": "I am Dr. Sarah Johnson and need to refer a patient to Dr Walter Reed"
                     }
                 ],
                 "role": "user",
@@ -380,7 +374,7 @@ Response - Seq 4:
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "Please specify which currency you would like to convert to."
+                        "text": "To verify your identity for referrals to Dr Walter Reed, I need your complete information. Please provide your city and state, or your NPI number for verification."
                     }
                 ],
                 "role": "agent",
@@ -393,7 +387,7 @@ Response - Seq 4:
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "CAD"
+                        "text": "My NPI is 1234567890 and I practice in Boston, MA"
                     }
                 ],
                 "role": "user",
@@ -406,7 +400,7 @@ Response - Seq 4:
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "Looking up the exchange rates..."
+                        "text": "Looking up the referring provider's identity..."
                     }
                 ],
                 "role": "agent",
@@ -419,7 +413,7 @@ Response - Seq 4:
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "Processing the exchange rates.."
+                        "text": "Processing the referring provider's identity.."
                     }
                 ],
                 "role": "agent",
@@ -435,7 +429,7 @@ Response - Seq 4:
 }
 ```
 
-**Streaming example**
+**Streaming provider verification example**
 
 Request:
 
@@ -451,7 +445,7 @@ Request:
             "parts": [
                 {
                     "kind": "text",
-                    "text": "how much is 10 USD in INR?"
+                    "text": "I need to verify Dr. John Smith from Chicago, IL for a cardiology referral"
                 }
             ],
             "role": "user"
@@ -463,13 +457,13 @@ Request:
 Response:
 
 ```
-data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","history":[{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"message","messageId":"2f9538ef0984471aa0d5179ce3c67a28","parts":[{"kind":"text","text":"how much is 10 USD in INR?"}],"role":"user","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}],"id":"423a2569-f272-4d75-a4d1-cdc6682188e5","kind":"task","status":{"state":"submitted"}}}
+data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","history":[{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"message","messageId":"2f9538ef0984471aa0d5179ce3c67a28","parts":[{"kind":"text","text":"I need to verify Dr. John Smith from Chicago, IL for a cardiology referral"}],"role":"user","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}],"id":"423a2569-f272-4d75-a4d1-cdc6682188e5","kind":"task","status":{"state":"submitted"}}}
 
-data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","final":false,"kind":"status-update","status":{"message":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"message","messageId":"1854a825-c64f-4f30-96f2-c8aa558b83f9","parts":[{"kind":"text","text":"Looking up the exchange rates..."}],"role":"agent","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"},"state":"working"},"taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}}
+data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","final":false,"kind":"status-update","status":{"message":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"message","messageId":"1854a825-c64f-4f30-96f2-c8aa558b83f9","parts":[{"kind":"text","text":"Looking up the referring provider's identity..."}],"role":"agent","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"},"state":"working"},"taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}}
 
-data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","final":false,"kind":"status-update","status":{"message":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"message","messageId":"e72127a6-4830-4320-bf23-235ac79b9a13","parts":[{"kind":"text","text":"Processing the exchange rates.."}],"role":"agent","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"},"state":"working"},"taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}}
+data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","final":false,"kind":"status-update","status":{"message":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"message","messageId":"e72127a6-4830-4320-bf23-235ac79b9a13","parts":[{"kind":"text","text":"Processing the referring provider's identity.."}],"role":"agent","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"},"state":"working"},"taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}}
 
-data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"artifact":{"artifactId":"08373241-a745-4abe-a78b-9ca60882bcc6","name":"conversion_result","parts":[{"kind":"text","text":"10 USD is 856.2 INR."}]},"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"artifact-update","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}}
+data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"artifact":{"artifactId":"08373241-a745-4abe-a78b-9ca60882bcc6","name":"verification_result","parts":[{"kind":"text","text":"Identity verified: Dr. John Michael Smith, MD\nNPI: 1234567890\nStatus: Active\nLocation: Chicago, IL\nYour identity has been successfully verified for referrals to Dr Walter Reed."}]},"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"artifact-update","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}}
 
 data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","final":true,"kind":"status-update","status":{"state":"completed"},"taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}}
 ```
@@ -478,13 +472,12 @@ data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"co
 
 - [A2A Protocol Documentation](https://a2a-protocol.org/)
 - [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
-- [Frankfurter API](https://www.frankfurter.app/docs/)
-- [Google Gemini API](https://ai.google.dev/gemini-api)
-
+- [NPPES NPI Registry](https://npiregistry.cms.hhs.gov/)
+- [Anthropic Claude API](https://docs.anthropic.com/claude/reference/)
 
 ## Disclaimer
 Important: The sample code provided is for demonstration purposes and illustrates the mechanics of the Agent-to-Agent (A2A) protocol. When building production applications, it is critical to treat any agent operating outside of your direct control as a potentially untrusted entity.
 
-All data received from an external agent—including but not limited to its AgentCard, messages, artifacts, and task statuses—should be handled as untrusted input. For example, a malicious agent could provide an AgentCard containing crafted data in its fields (e.g., description, name, skills.description). If this data is used without sanitization to construct prompts for a Large Language Model (LLM), it could expose your application to prompt injection attacks.  Failure to properly validate and sanitize this data before use can introduce security vulnerabilities into your application.
+All data received from an external agent—including but not limited to its AgentCard, messages, artifacts, and task statuses—should be handled as untrusted input. For example, a malicious agent could provide an AgentCard containing crafted data in its fields (e.g., description, name, skills.description). If this data is used without sanitization to construct prompts for a Large Language Model (LLM), it could expose your application to prompt injection attacks. Failure to properly validate and sanitize this data before use can introduce security vulnerabilities into your application.
 
 Developers are responsible for implementing appropriate security measures, such as input validation and secure handling of credentials to protect their systems and users.
