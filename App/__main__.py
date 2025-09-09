@@ -56,10 +56,18 @@ def main(host, port):
             tags=['currency conversion', 'currency exchange'],
             examples=['What is exchange rate between USD and GBP?'],
         )
+        # Use HTTPS for production deployment, HTTP for local development
+        if host == '0.0.0.0' and port == 10000:
+            # Production on Fly.io
+            agent_url = 'https://lang-a2a-cardio.fly.dev/'
+        else:
+            # Local development
+            agent_url = f'http://{host}:{port}/'
+            
         agent_card = AgentCard(
             name=agent.agent_name,
             description=agent.agent_description,
-            url=f'http://{host}:{port}/',
+            url=agent_url,
             version=agent.agent_version,
             default_input_modes=agent.SUPPORTED_CONTENT_TYPES,
             default_output_modes=agent.SUPPORTED_CONTENT_TYPES,
