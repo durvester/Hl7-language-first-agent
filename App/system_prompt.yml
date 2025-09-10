@@ -42,7 +42,7 @@ streaming_messages:
 
 # Agent metadata (optional - could be moved to separate config)
 agent_info:
-  name: "Referral Agent"
-  description: "Helps with referrals to Dr Walter Reed"
-  version: "1.0.0"
+  name: "Dr. Walter Reed Cardiology Referral Agent"
+  description: "Complete cardiology referral workflow for Dr Walter Reed's Manhattan clinic"
+  version: "1.1.0"
   supported_content_types: ["text", "text/plain"]
