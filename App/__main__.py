@@ -5,6 +5,7 @@ import sys
 import click
 import httpx
 import uvicorn
+from starlette.middleware.cors import CORSMiddleware
 
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
@@ -90,8 +91,18 @@ def main(host, port):
         server = A2AStarletteApplication(
             agent_card=agent_card, http_handler=request_handler
         )
+        
+        # Add CORS middleware to handle cross-origin requests
+        app = server.build()
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],  # Allow all origins for development - restrict in production
+            allow_credentials=True,
+            allow_methods=["*"],  # Allow all HTTP methods
+            allow_headers=["*"],  # Allow all headers
+        )
 
-        uvicorn.run(server.build(), host=host, port=port)
+        uvicorn.run(app, host=host, port=port)
         # --8<-- [end:DefaultRequestHandler]
 
     except MissingAPIKeyError as e:
