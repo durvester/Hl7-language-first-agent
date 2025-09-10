@@ -220,8 +220,210 @@ def get_referring_provider_identity(
 
 
 
+@tool
+def verify_insurance_coverage(
+    insurance_provider: str,
+    patient_name: str,
+    member_id: Optional[str] = None
+) -> str:
+    """
+    Verify if patient insurance is accepted by Dr. Walter Reed's clinic.
+    
+    Accepted insurers: United Healthcare, Aetna, Cigna, Blue Cross Blue Shield (BCBS), Kaiser
+    
+    Args:
+        insurance_provider: Name of the insurance company
+        patient_name: Patient's full name
+        member_id: Insurance member ID (optional)
+        
+    Returns:
+        JSON string with insurance verification results
+    """
+    import json
+    
+    # Mock implementation - simulate insurance verification
+    accepted_insurers = [
+        "united healthcare", "united", "aetna", "cigna", 
+        "blue cross blue shield", "bcbs", "kaiser"
+    ]
+    
+    provider_lower = insurance_provider.lower().strip()
+    is_accepted = any(accepted in provider_lower for accepted in accepted_insurers)
+    
+    if is_accepted:
+        result = {
+            "success": True,
+            "insurance_accepted": True,
+            "insurance_provider": insurance_provider,
+            "patient_name": patient_name,
+            "member_id": member_id,
+            "verification_status": "Coverage verified - insurance accepted",
+            "next_step": "Proceed to clinical validation"
+        }
+    else:
+        result = {
+            "success": True,
+            "insurance_accepted": False,
+            "insurance_provider": insurance_provider,
+            "patient_name": patient_name,
+            "member_id": member_id,
+            "verification_status": "Insurance not accepted",
+            "accepted_insurers": "United Healthcare, Aetna, Cigna, BCBS, Kaiser",
+            "recommendation": "Contact Dr. Reed's office for self-pay options"
+        }
+    
+    return json.dumps(result, indent=2)
+
+
+@tool
+def validate_clinical_criteria(
+    referral_reason: str,
+    patient_name: str,
+    documentation_available: str = "Unknown"
+) -> str:
+    """
+    Validate if referral meets Dr. Walter Reed's clinical criteria.
+    
+    Acceptable reasons: chest pain, abnormal stress test, arrhythmia, heart failure,
+    valvular disease, syncope, resistant hypertension, congenital heart disease, 
+    pulmonary hypertension.
+    
+    Args:
+        referral_reason: Primary reason for cardiology referral
+        patient_name: Patient's full name
+        documentation_available: Description of available clinical documentation
+        
+    Returns:
+        JSON string with clinical validation results
+    """
+    import json
+    
+    # Mock implementation - simulate clinical criteria validation
+    valid_reasons = [
+        "chest pain", "ischemia", "stress test", "arrhythmia", "heart failure", 
+        "cardiomyopathy", "valvular", "syncope", "hypertension", "congenital", 
+        "pulmonary hypertension", "cardiac", "heart"
+    ]
+    
+    reason_lower = referral_reason.lower()
+    is_valid_reason = any(valid in reason_lower for valid in valid_reasons)
+    
+    # Mock documentation check
+    has_documentation = "ecg" in documentation_available.lower() or \
+                       "ekg" in documentation_available.lower() or \
+                       "echo" in documentation_available.lower() or \
+                       "available" in documentation_available.lower()
+    
+    if is_valid_reason and has_documentation:
+        result = {
+            "success": True,
+            "clinical_criteria_met": True,
+            "referral_reason": referral_reason,
+            "patient_name": patient_name,
+            "documentation_status": "Adequate documentation provided",
+            "validation_status": "Clinical criteria met - approved for scheduling",
+            "next_step": "Proceed to appointment scheduling"
+        }
+    elif is_valid_reason and not has_documentation:
+        result = {
+            "success": True,
+            "clinical_criteria_met": False,
+            "referral_reason": referral_reason,
+            "patient_name": patient_name,
+            "documentation_status": "Missing required documentation",
+            "required_docs": "ECG, recent echocardiogram (if performed), relevant labs, medication list, primary care summary",
+            "recommendation": "Please provide required documentation before scheduling"
+        }
+    else:
+        result = {
+            "success": True,
+            "clinical_criteria_met": False,
+            "referral_reason": referral_reason,
+            "patient_name": patient_name,
+            "validation_status": "Referral reason does not meet criteria",
+            "acceptable_reasons": "Chest pain, abnormal stress test, arrhythmia, heart failure, valvular disease, syncope, resistant hypertension",
+            "recommendation": "Contact Dr. Reed's office to discuss referral appropriateness"
+        }
+    
+    return json.dumps(result, indent=2)
+
+
+@tool
+def schedule_appointment(
+    patient_name: str,
+    patient_dob: str,
+    patient_phone: str,
+    preferred_date: Optional[str] = None
+) -> str:
+    """
+    Schedule cardiology appointment with Dr. Walter Reed.
+    
+    Available: Mondays and Thursdays, 11:00 AM - 3:00 PM, 1-hour slots
+    
+    Args:
+        patient_name: Patient's full name
+        patient_dob: Patient's date of birth (MM/DD/YYYY)
+        patient_phone: Patient's contact phone number
+        preferred_date: Preferred appointment date (optional)
+        
+    Returns:
+        JSON string with appointment scheduling results
+    """
+    import json
+    from datetime import datetime, timedelta
+    
+    # Mock implementation - simulate appointment scheduling
+    # Generate next available Monday or Thursday
+    today = datetime.now()
+    days_ahead = []
+    
+    # Find next Monday (weekday 0) and Thursday (weekday 3)
+    for i in range(1, 15):  # Look ahead 2 weeks
+        future_date = today + timedelta(days=i)
+        if future_date.weekday() in [0, 3]:  # Monday or Thursday
+            days_ahead.append(future_date)
+        if len(days_ahead) >= 4:  # Get 4 available slots
+            break
+    
+    if days_ahead:
+        scheduled_date = days_ahead[0]  # Take first available
+        appointment_time = "11:00 AM"
+        
+        result = {
+            "success": True,
+            "appointment_scheduled": True,
+            "patient_name": patient_name,
+            "patient_dob": patient_dob,
+            "patient_phone": patient_phone,
+            "appointment_date": scheduled_date.strftime("%A, %B %d, %Y"),
+            "appointment_time": appointment_time,
+            "duration": "1 hour",
+            "location": "Walter Reed Clinic, Manhattan",
+            "confirmation_number": f"WR{scheduled_date.strftime('%m%d')}{patient_name[:2].upper()}",
+            "instructions": "Please arrive 15 minutes early with insurance card and referral documentation",
+            "contact": "Dr. Reed's office: (555) 123-CARD",
+            "status": "APPOINTMENT CONFIRMED"
+        }
+    else:
+        result = {
+            "success": False,
+            "appointment_scheduled": False,
+            "patient_name": patient_name,
+            "error": "No available appointments in the next 2 weeks",
+            "recommendation": "Please contact Dr. Reed's office directly at (555) 123-CARD",
+            "status": "SCHEDULING FAILED"
+        }
+    
+    return json.dumps(result, indent=2)
+
+
 # Export all available tools
-TOOLS = [get_referring_provider_identity]
+TOOLS = [
+    get_referring_provider_identity,
+    verify_insurance_coverage,
+    validate_clinical_criteria,
+    schedule_appointment
+]
 
 # Optional: Tool metadata for introspection
 TOOL_METADATA = {
@@ -230,5 +432,23 @@ TOOL_METADATA = {
         'description': 'Healthcare provider identity verification for Dr Walter Reed referrals',
         'api_dependency': 'npiregistry.cms.hhs.gov',
         'rate_limited': True,
+    },
+    'verify_insurance_coverage': {
+        'category': 'healthcare',
+        'description': 'Insurance coverage verification for accepted payers',
+        'api_dependency': 'mock',
+        'rate_limited': False,
+    },
+    'validate_clinical_criteria': {
+        'category': 'healthcare',
+        'description': 'Clinical criteria validation for cardiology referrals',
+        'api_dependency': 'mock',
+        'rate_limited': False,
+    },
+    'schedule_appointment': {
+        'category': 'healthcare',
+        'description': 'Appointment scheduling for Dr Walter Reed clinic',
+        'api_dependency': 'mock',
+        'rate_limited': False,
     }
 }
