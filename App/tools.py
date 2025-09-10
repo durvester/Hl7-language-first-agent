@@ -111,14 +111,18 @@ async def _verify_provider_async(
     city: Optional[str] = None,
     state: Optional[str] = None,
     npi: Optional[str] = None
-) -> str:
+) -> Dict[str, Any]:
     """
-    Async implementation of provider verification.
+    Search for healthcare providers in the NPPES registry.
+    Returns structured data for the LLM to interpret and respond to.
     """
     try:
         # Validate input
         if not first_name or not last_name:
-            return "Both first name and last name are required for provider verification. Please provide complete information."
+            return {
+                "success": False,
+                "error": "Both first name and last name are required"
+            }
         
         client = NPPESClient()
         data = await client.search_providers(first_name, last_name, city, state)
@@ -126,108 +130,64 @@ async def _verify_provider_async(
         result_count = data.get("result_count", 0)
         results = data.get("results", [])
         
-        # Process results based on count
-        if result_count == 0:
-            return (f"No healthcare providers found matching '{first_name} {last_name}'" +
-                   (f" in {city}, {state}" if city or state else "") + 
-                   ". Please verify the spelling or provide additional details like city or state.")
+        # Extract essential provider information
+        providers = []
+        for provider in results:
+            basic = provider.get("basic", {})
+            addresses = provider.get("addresses", [])
+            provider_npi = provider.get("number", "")
+            
+            # Get location address (prefer LOCATION over MAILING)
+            location_address = None
+            for addr in addresses:
+                if addr.get("address_purpose") == "LOCATION":
+                    location_address = addr
+                    break
+            if not location_address and addresses:
+                location_address = addresses[0]  # fallback to first address
+            
+            # Build provider info
+            provider_info = {
+                "npi": provider_npi,
+                "first_name": basic.get("first_name", ""),
+                "middle_name": basic.get("middle_name", ""),
+                "last_name": basic.get("last_name", ""),
+                "credential": basic.get("credential", ""),
+                "name_prefix": basic.get("name_prefix", ""),
+                "status": "Active" if basic.get("status") == "A" else "Inactive",
+                "enumeration_date": basic.get("enumeration_date", ""),
+                "city": location_address.get("city", "") if location_address else "",
+                "state": location_address.get("state", "") if location_address else "",
+                "matches_npi": provider_npi == npi.strip() if npi else None
+            }
+            providers.append(provider_info)
         
-        elif result_count <= 3:
-            # Process each provider to extract key information
-            response_lines = []
-            response_lines.append(f"Found {result_count} provider(s) matching '{first_name} {last_name}'" +
-                                (f" in {city}, {state}" if city or state else "") + ":")
-            response_lines.append("")
-            
-            npi_match_found = False
-            
-            for i, provider in enumerate(results, 1):
-                basic = provider.get("basic", {})
-                addresses = provider.get("addresses", [])
-                provider_npi = provider.get("number", "")
-                
-                # Get primary address (usually first one)
-                primary_address = addresses[0] if addresses else {}
-                
-                # Check if provider is active
-                status = basic.get("status", "")
-                is_active = status == "A"
-                
-                full_name = f"{basic.get('first_name', '')} {basic.get('middle_name', '')} {basic.get('last_name', '')}".strip()
-                credentials = basic.get('credential', '')
-                
-                response_lines.append(f"{i}. {full_name}" + (f", {credentials}" if credentials else ""))
-                response_lines.append(f"   NPI: {provider_npi}")
-                response_lines.append(f"   Status: {'Active' if is_active else 'Inactive'}")
-                response_lines.append(f"   Location: {primary_address.get('city', '')}, {primary_address.get('state', '')}")
-                response_lines.append(f"   Enumeration Date: {basic.get('enumeration_date', '')}")
-                response_lines.append("")
-                
-                # Check for NPI match if provided
-                if npi and provider_npi == npi.strip():
-                    npi_match_found = True
-                    response_lines.append(f"✓ NPI {npi} matches this provider.")
-                    response_lines.append("")
-            
-            # If NPI was provided but no match found, return validation failure
-            if npi and not npi_match_found:
-                response_lines.append(f"⚠️ NPI {npi} does not match any of the providers listed above. Please verify the NPI number or provider information.")
-            
-            if result_count > 1:
-                response_lines.append("Your identity has been verified. Please confirm which provider above matches you for accurate referral processing.")
-            else:
-                response_lines.append("Your identity has been successfully verified for referrals to Dr Walter Reed.")
-            
-            return "\n".join(response_lines)
-        
-        else:
-            # Too many results - need refinement, but check NPI first if provided
-            if npi:
-                # Check if any of the results match the provided NPI
-                npi_match_found = False
-                
-                for provider in results:
-                    provider_npi = provider.get("number", "")
-                    if provider_npi == npi.strip():
-                        npi_match_found = True
-                        # Process the matching provider
-                        basic = provider.get("basic", {})
-                        addresses = provider.get("addresses", [])
-                        primary_address = addresses[0] if addresses else {}
-                        status = basic.get("status", "")
-                        is_active = status == "A"
-                        
-                        full_name = f"{basic.get('first_name', '')} {basic.get('middle_name', '')} {basic.get('last_name', '')}".strip()
-                        credentials = basic.get('credential', '')
-                        
-                        return (f"Identity verified: {full_name}" + (f", {credentials}" if credentials else "") + 
-                               f"\nNPI: {npi}\nStatus: {'Active' if is_active else 'Inactive'}" +
-                               f"\nLocation: {primary_address.get('city', '')}, {primary_address.get('state', '')}" +
-                               f"\nYour identity has been successfully verified for referrals to Dr Walter Reed.")
-                
-                if not npi_match_found:
-                    return (f"NPI {npi} does not match any provider named '{first_name} {last_name}'. " +
-                           f"Found {result_count} provider(s) with that name but none have the provided NPI. " +
-                           "Please verify the NPI number or provider name.")
-            
-            # No NPI provided - need more information
-            refinement_params = []
-            if not city:
-                refinement_params.append("city")
-            if not state:
-                refinement_params.append("state")
-            
-            return (f"Found {result_count} providers matching '{first_name} {last_name}'" +
-                   (f" in {city}, {state}" if city or state else "") + 
-                   f". Please provide additional information to narrow the search: {', '.join(refinement_params)} or your NPI number.")
+        return {
+            "success": True,
+            "result_count": result_count,
+            "providers": providers,
+            "search_criteria": {
+                "first_name": first_name,
+                "last_name": last_name,
+                "city": city,
+                "state": state,
+                "npi": npi
+            }
+        }
     
     except ProviderVerificationError as e:
         logger.error(f"Provider verification failed: {e}")
-        return f"Unable to verify provider identity: {str(e)}. Please try again or contact support."
+        return {
+            "success": False,
+            "error": str(e)
+        }
     
     except Exception as e:
         logger.error(f"Unexpected error in provider verification: {e}")
-        return "An unexpected error occurred during provider verification. Please try again."
+        return {
+            "success": False,
+            "error": "An unexpected error occurred during provider verification"
+        }
 
 
 @tool
@@ -239,21 +199,24 @@ def get_referring_provider_identity(
     npi: Optional[str] = None
 ) -> str:
     """
-    Verify a healthcare provider's identity using the NPPES NPI Registry.
+    Search for healthcare providers in the NPPES NPI Registry.
     
-    This is the primary tool for verifying referring providers to Dr Walter Reed.
+    Use this tool to look up healthcare provider information for referral verification.
+    The tool returns structured data - interpret the results and guide the conversation appropriately.
     
     Args:
         first_name: Provider's first name (required)
         last_name: Provider's last name (required)  
         city: City to narrow search (optional)
-        state: State to narrow search (optional)
-        npi: NPI number to validate against found providers (optional)
+        state: State abbreviation to narrow search (optional)
+        npi: NPI number to validate (optional)
         
     Returns:
-        A formatted string with verification results suitable for the referring provider
+        JSON string with provider search results
     """
-    return asyncio.run(_verify_provider_async(first_name, last_name, city, state, npi))
+    import json
+    result = asyncio.run(_verify_provider_async(first_name, last_name, city, state, npi))
+    return json.dumps(result, indent=2)
 
 
 
