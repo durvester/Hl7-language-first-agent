@@ -73,10 +73,13 @@ class GenericAgent:
                 and message.tool_calls
                 and len(message.tool_calls) > 0
             ):
+                # Get the tool name for specific streaming message
+                tool_name = message.tool_calls[0]['name']
+                streaming_message = self.streaming_messages.get(tool_name, self.streaming_messages.get('fallback', 'Processing your request...'))
                 yield {
                     'is_task_complete': False,
                     'require_user_input': False,
-                    'content': self.streaming_messages.get('tool_call', 'Processing your request...'),
+                    'content': streaming_message,
                 }
             elif isinstance(message, ToolMessage):
                 yield {
