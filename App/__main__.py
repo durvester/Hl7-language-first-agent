@@ -58,8 +58,8 @@ def main(host, port):
         )
         # Use HTTPS for production deployment, HTTP for local development
         if host == '0.0.0.0' and port == 10000:
-            # Production on Fly.io
-            agent_url = 'https://lang-a2a-cardio.fly.dev/'
+            # Production on custom domain
+            agent_url = 'https://practicefusion-agent.com/'
         else:
             # Local development
             agent_url = f'http://{host}:{port}/'

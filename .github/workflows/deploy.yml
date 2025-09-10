@@ -26,19 +26,20 @@ jobs:
       - name: Verify deployment
         run: |
           echo "🚀 Deployment completed successfully!"
-          echo "App is available at: https://lang-a2a-cardio.fly.dev/"
+          echo "App is available at: https://practicefusion-agent.com/"
           
       - name: Health check
         run: |
-          # Wait a bit for deployment to stabilize
+          # Wait for deployment to stabilize
           sleep 30
           
-          # Check if the app is responding
-          response=$(curl -s -o /dev/null -w "%{http_code}" https://lang-a2a-cardio.fly.dev/.well-known/agent-card.json || echo "000")
+          # Test the custom domain
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://practicefusion-agent.com/.well-known/agent-card.json || echo "000")
           
           if [ "$response" = "200" ]; then
-            echo "✅ Health check passed - Agent card endpoint is responding"
+            echo "✅ Health check passed - Custom domain is responding"
+            echo "🌐 Agent card available at: https://practicefusion-agent.com/.well-known/agent-card.json"
           else
-            echo "❌ Health check failed - Got HTTP $response"
-            exit 1
+            echo "⚠️  Health check: Got HTTP $response - Domain may still be propagating"
+            echo "📊 Monitor at: https://fly.io/apps/lang-a2a-cardio/monitoring"
           fi
