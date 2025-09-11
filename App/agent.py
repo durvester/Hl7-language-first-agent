@@ -110,10 +110,15 @@ class GenericAgent:
                     break
                 elif isinstance(msg.content, list):
                     # Extract text from list format (when there are tool calls)
-                    text_parts = [part.get('text', '') for part in msg.content if part.get('type') == 'text']
-                    if text_parts:
-                        last_ai_message = ' '.join(text_parts)
-                        break
+                    try:
+                        text_parts = [part.get('text', '') for part in msg.content 
+                                     if isinstance(part, dict) and part.get('type') == 'text']
+                        if text_parts:
+                            last_ai_message = ' '.join(text_parts)
+                            break
+                    except (TypeError, AttributeError) as e:
+                        print(f"Warning: Error extracting text from list content: {e}")
+                        continue
         
         # Use structured response for state management but return conversational content
         structured_response = current_state.values.get('structured_response')
