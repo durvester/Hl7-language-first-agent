@@ -30,7 +30,12 @@ format_instruction: |
   Set response status to input_required if the user needs to provide more information to complete the request.
   Set response status to error if there is an error while processing the request.
   Set response status to completed if the request is complete with either:
-  - SUCCESS: Patient created in EHR AND appointment scheduled with confirmation details including patient MRN
+  - SUCCESS: Patient created in EHR AND appointment scheduled - ALWAYS include these appointment details in final message:
+    * Patient name and MRN
+    * Appointment date, time, and duration
+    * Location and provider (Dr. Walter Reed)
+    * Confirmation number (appointment ID)
+    * Contact information and arrival instructions
   - FAILURE: Referral cannot be processed - contact Dr. Reed's office
 
 # Messages shown during streaming events (optional customization)
