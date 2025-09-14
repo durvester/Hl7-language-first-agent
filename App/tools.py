@@ -248,6 +248,262 @@ class PracticeFusionClient:
             logger.error(f"Unexpected error in patient creation: {e}")
             raise PracticeFusionError(f"Unexpected error: {e}")
 
+    async def get_users(self) -> Dict[str, Any]:
+        """
+        Get all users in the practice to find Dr. Walter Reed's user details.
+
+        Returns:
+            Dictionary containing users list
+
+        Raises:
+            PracticeFusionError: If users fetch fails
+        """
+        try:
+            access_token = await self.get_access_token()
+            users_url = f"{self.base_url}/ehr/v2/users"
+
+            headers = {
+                'Authorization': f'Bearer {access_token}'
+            }
+
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                for attempt in range(self.max_retries):
+                    try:
+                        response = await client.get(users_url, headers=headers)
+                        response.raise_for_status()
+
+                        users_data = response.json()
+                        logger.info(f"Successfully retrieved {len(users_data.get('Users', []))} users")
+                        return users_data
+
+                    except httpx.HTTPStatusError as e:
+                        if e.response.status_code == 429:  # Rate limit
+                            wait_time = 2 ** attempt
+                            logger.warning(f"Rate limited, waiting {wait_time}s before retry {attempt + 1}")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            logger.error(f"Practice Fusion users API HTTP error {e.response.status_code}: {e}")
+                            raise PracticeFusionError(f"Users API error: {e.response.status_code}")
+
+                    except httpx.RequestError as e:
+                        if attempt == self.max_retries - 1:
+                            logger.error(f"Practice Fusion users API request failed after {self.max_retries} attempts: {e}")
+                            raise PracticeFusionError(f"Unable to connect to Practice Fusion API: {e}")
+
+                        wait_time = 1 * (attempt + 1)
+                        logger.warning(f"Users request failed, retrying in {wait_time}s: {e}")
+                        await asyncio.sleep(wait_time)
+
+            raise PracticeFusionError("Max retries exceeded for users fetch")
+
+        except PracticeFusionError:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in users fetch: {e}")
+            raise PracticeFusionError(f"Unexpected error: {e}")
+
+    async def get_facilities(self) -> Dict[str, Any]:
+        """
+        Get all facilities in the practice to find Walter Reed Cardiology Clinic details.
+
+        Returns:
+            Dictionary containing facilities list
+
+        Raises:
+            PracticeFusionError: If facilities fetch fails
+        """
+        try:
+            access_token = await self.get_access_token()
+            facilities_url = f"{self.base_url}/ehr/v2/facilities"
+
+            headers = {
+                'Authorization': f'Bearer {access_token}'
+            }
+
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                for attempt in range(self.max_retries):
+                    try:
+                        response = await client.get(facilities_url, headers=headers)
+                        response.raise_for_status()
+
+                        facilities_data = response.json()
+                        logger.info(f"Successfully retrieved {len(facilities_data.get('facilities', []))} facilities")
+                        return facilities_data
+
+                    except httpx.HTTPStatusError as e:
+                        if e.response.status_code == 429:  # Rate limit
+                            wait_time = 2 ** attempt
+                            logger.warning(f"Rate limited, waiting {wait_time}s before retry {attempt + 1}")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            logger.error(f"Practice Fusion facilities API HTTP error {e.response.status_code}: {e}")
+                            raise PracticeFusionError(f"Facilities API error: {e.response.status_code}")
+
+                    except httpx.RequestError as e:
+                        if attempt == self.max_retries - 1:
+                            logger.error(f"Practice Fusion facilities API request failed after {self.max_retries} attempts: {e}")
+                            raise PracticeFusionError(f"Unable to connect to Practice Fusion API: {e}")
+
+                        wait_time = 1 * (attempt + 1)
+                        logger.warning(f"Facilities request failed, retrying in {wait_time}s: {e}")
+                        await asyncio.sleep(wait_time)
+
+            raise PracticeFusionError("Max retries exceeded for facilities fetch")
+
+        except PracticeFusionError:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in facilities fetch: {e}")
+            raise PracticeFusionError(f"Unexpected error: {e}")
+
+    async def check_calendar_availability(
+        self,
+        ehr_user_guid: str,
+        facility_guid: str,
+        start_date_utc: str,
+        end_date_utc: str
+    ) -> Dict[str, Any]:
+        """
+        Check for existing appointments in the specified time window.
+
+        Args:
+            ehr_user_guid: Provider's EHR user GUID
+            facility_guid: Facility GUID
+            start_date_utc: Start date in UTC (YYYY-MM-DDTHH:MM:SSZ)
+            end_date_utc: End date in UTC (YYYY-MM-DDTHH:MM:SSZ)
+
+        Returns:
+            Dictionary containing calendar events
+
+        Raises:
+            PracticeFusionError: If calendar query fails
+        """
+        try:
+            access_token = await self.get_access_token()
+
+            params = {
+                "eventTypeCategory": "Appointment",
+                "ehrUserGuid": ehr_user_guid,
+                "facilityGuid": facility_guid,
+                "minimumStartDateTimeUtc": start_date_utc,
+                "maximumStartDateTimeUtc": end_date_utc
+            }
+
+            calendar_url = f"{self.base_url}/ehr/v1/calendar/events/query"
+
+            headers = {
+                'Authorization': f'Bearer {access_token}'
+            }
+
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                for attempt in range(self.max_retries):
+                    try:
+                        response = await client.get(calendar_url, params=params, headers=headers)
+                        response.raise_for_status()
+
+                        calendar_data = response.json()
+                        logger.info(f"Successfully retrieved {len(calendar_data.get('events', []))} calendar events")
+                        return calendar_data
+
+                    except httpx.HTTPStatusError as e:
+                        if e.response.status_code == 429:  # Rate limit
+                            wait_time = 2 ** attempt
+                            logger.warning(f"Rate limited, waiting {wait_time}s before retry {attempt + 1}")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            logger.error(f"Practice Fusion calendar API HTTP error {e.response.status_code}: {e}")
+                            raise PracticeFusionError(f"Calendar API error: {e.response.status_code}")
+
+                    except httpx.RequestError as e:
+                        if attempt == self.max_retries - 1:
+                            logger.error(f"Practice Fusion calendar API request failed after {self.max_retries} attempts: {e}")
+                            raise PracticeFusionError(f"Unable to connect to Practice Fusion API: {e}")
+
+                        wait_time = 1 * (attempt + 1)
+                        logger.warning(f"Calendar request failed, retrying in {wait_time}s: {e}")
+                        await asyncio.sleep(wait_time)
+
+            raise PracticeFusionError("Max retries exceeded for calendar query")
+
+        except PracticeFusionError:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in calendar query: {e}")
+            raise PracticeFusionError(f"Unexpected error: {e}")
+
+    async def create_appointment(self, appointment_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new appointment in Practice Fusion EHR.
+
+        Args:
+            appointment_data: Dictionary containing appointment information
+
+        Returns:
+            Dictionary containing appointment creation response
+
+        Raises:
+            PracticeFusionError: If appointment creation fails
+        """
+        try:
+            access_token = await self.get_access_token()
+            appointment_url = f"{self.base_url}/ehr/v1/calendar/events"
+
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {access_token}'
+            }
+
+            logger.info(f"Creating appointment for patient: {appointment_data.get('event', {}).get('patientPracticeGuid', 'Unknown')}")
+
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                for attempt in range(self.max_retries):
+                    try:
+                        response = await client.post(appointment_url, json=appointment_data, headers=headers)
+                        response.raise_for_status()
+
+                        appointment_response = response.json()
+                        logger.info(f"Successfully created appointment with ID: {appointment_response.get('event', {}).get('eventId', 'Unknown')}")
+                        return appointment_response
+
+                    except httpx.HTTPStatusError as e:
+                        if e.response.status_code == 429:  # Rate limit
+                            wait_time = 2 ** attempt
+                            logger.warning(f"Rate limited, waiting {wait_time}s before retry {attempt + 1}")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            # Log detailed error information for debugging
+                            error_details = ""
+                            try:
+                                error_response = e.response.json()
+                                error_details = f" - Response: {error_response}"
+                            except:
+                                error_details = f" - Response text: {e.response.text}"
+
+                            logger.error(f"Practice Fusion appointment API HTTP error {e.response.status_code}: {e}{error_details}")
+                            logger.error(f"Request payload was: {appointment_data}")
+                            raise PracticeFusionError(f"Appointment creation API error: {e.response.status_code}{error_details}")
+
+                    except httpx.RequestError as e:
+                        if attempt == self.max_retries - 1:
+                            logger.error(f"Practice Fusion appointment API request failed after {self.max_retries} attempts: {e}")
+                            raise PracticeFusionError(f"Unable to connect to Practice Fusion API: {e}")
+
+                        wait_time = 1 * (attempt + 1)
+                        logger.warning(f"Appointment creation request failed, retrying in {wait_time}s: {e}")
+                        await asyncio.sleep(wait_time)
+
+            raise PracticeFusionError("Max retries exceeded for appointment creation")
+
+        except PracticeFusionError:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in appointment creation: {e}")
+            raise PracticeFusionError(f"Unexpected error: {e}")
+
 
 async def _verify_provider_async(
     first_name: str,
@@ -476,6 +732,203 @@ async def _create_patient_async(
         }
 
 
+async def _schedule_appointment_async(
+    patient_name: str,
+    patient_dob: str,
+    patient_phone: str,
+    patient_practice_guid: str,
+    preferred_date: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Schedule a real appointment using Practice Fusion API.
+    Returns structured data for the LLM to interpret and respond to.
+    """
+    try:
+        from datetime import datetime, timedelta, timezone
+        try:
+            import pytz
+        except ImportError:
+            logger.warning("pytz not available, using datetime timezone instead")
+            # Fallback to built-in timezone for Eastern Time
+            from datetime import timezone, timedelta
+            eastern = timezone(timedelta(hours=-5))  # EST (simplified)
+            utc = timezone.utc
+
+        # Validate required input
+        if not patient_name or not patient_dob or not patient_phone or not patient_practice_guid:
+            return {
+                "success": False,
+                "error": "Patient name, date of birth, phone number, and patient practice GUID are required"
+            }
+
+        # Create Practice Fusion client
+        client = PracticeFusionClient()
+
+        # Use configuration constants
+        walter_reed_user_guid = config.WALTER_REED_USER_GUID
+        walter_reed_facility_guid = config.WALTER_REED_FACILITY_GUID
+        practice_guid = config.PRACTICE_GUID
+        event_type_guid = config.NEW_PATIENT_VISIT_TYPE_GUID
+
+        # Find available appointment slots
+        # Walter Reed Cardiology Clinic hours: Mon-Fri 9AM-5PM Eastern
+        if 'pytz' in locals():
+            eastern = pytz.timezone('America/New_York')
+            utc = pytz.UTC
+        # eastern and utc already set in fallback above if pytz not available
+
+        # Find next available weekday (Monday-Friday)
+        today = datetime.now(eastern)
+        available_slots = []
+
+        for days_ahead in range(1, 15):  # Look ahead 2 weeks
+            candidate_date = today + timedelta(days=days_ahead)
+
+            # Skip weekends (Saturday=5, Sunday=6)
+            if candidate_date.weekday() >= 5:
+                continue
+
+            # Generate hourly slots from 9AM to 4PM (last 1-hour slot starts at 4PM)
+            for hour in range(9, 17):  # 9AM to 4PM
+                slot_time = candidate_date.replace(hour=hour, minute=0, second=0, microsecond=0)
+
+                # Convert to UTC for API calls
+                slot_time_utc = slot_time.astimezone(utc)
+                available_slots.append({
+                    'local_time': slot_time,
+                    'utc_time': slot_time_utc,
+                    'date_str': slot_time.strftime("%A, %B %d, %Y"),
+                    'time_str': slot_time.strftime("%I:%M %p")
+                })
+
+        if not available_slots:
+            return {
+                "success": False,
+                "error": "No available slots found in the next 2 weeks"
+            }
+
+        # Check for conflicts with existing appointments
+        # We need to check availability in 7-day windows due to API limitation
+        selected_slot = None
+
+        for slot in available_slots:
+            # Create 7-day window around this slot for conflict checking
+            window_start = slot['utc_time'] - timedelta(days=3)
+            window_end = slot['utc_time'] + timedelta(days=4)
+
+            try:
+                # Check for existing appointments in this window
+                calendar_data = await client.check_calendar_availability(
+                    walter_reed_user_guid,
+                    walter_reed_facility_guid,
+                    window_start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    window_end.strftime("%Y-%m-%dT%H:%M:%SZ")
+                )
+
+                # Check if this specific slot conflicts with existing appointments
+                slot_conflicts = False
+                existing_events = calendar_data.get('events', [])
+
+                for event in existing_events:
+                    if event.get('isCancelled', False):
+                        continue
+
+                    event_start_utc = datetime.fromisoformat(
+                        event['startDateTimeUtc'].replace('Z', '+00:00')
+                    )
+
+                    # Parse duration (format: "HH:MM:SS")
+                    duration_str = event.get('duration', '01:00:00')
+                    duration_parts = duration_str.split(':')
+                    duration_hours = int(duration_parts[0])
+                    duration_minutes = int(duration_parts[1]) if len(duration_parts) > 1 else 0
+
+                    event_end_utc = event_start_utc + timedelta(hours=duration_hours, minutes=duration_minutes)
+
+                    # Check if our 1-hour slot overlaps with this event
+                    slot_end_utc = slot['utc_time'] + timedelta(hours=1)
+
+                    if (slot['utc_time'] < event_end_utc and slot_end_utc > event_start_utc):
+                        slot_conflicts = True
+                        break
+
+                if not slot_conflicts:
+                    selected_slot = slot
+                    break
+
+            except PracticeFusionError as e:
+                logger.warning(f"Could not check availability for slot {slot['time_str']}: {e}")
+                continue
+
+        if not selected_slot:
+            return {
+                "success": False,
+                "error": "No available slots found without conflicts"
+            }
+
+        # Create the appointment
+        appointment_data = {
+            "event": {
+                "practiceGuid": practice_guid,
+                "ehrUserGuid": walter_reed_user_guid,
+                "facilityGuid": walter_reed_facility_guid,
+                "patientPracticeGuid": patient_practice_guid,
+                "chiefComplaint": "",
+                "eventType": {
+                    "eventTypeGuid": event_type_guid,
+                    "eventTypeName": "New Patient Visit",
+                    "eventCategory": "Appointment"
+                },
+                "startDateTimeUtc": selected_slot['utc_time'].strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                "startDateTimeFlt": selected_slot['local_time'].strftime("%Y-%m-%dT%H:%M:%S.%f"),
+                "duration": "01:00:00"  # 1 hour appointment
+            }
+        }
+
+        # Create the appointment
+        appointment_response = await client.create_appointment(appointment_data)
+
+        # Extract appointment details from response
+        event_data = appointment_response.get("event", {})
+        event_id = event_data.get("eventId", "")
+
+        return {
+            "success": True,
+            "appointment_scheduled": True,
+            "appointment_id": event_id,
+            "patient_name": patient_name,
+            "patient_dob": patient_dob,
+            "patient_phone": patient_phone,
+            "patient_practice_guid": patient_practice_guid,
+            "appointment_date": selected_slot['date_str'],
+            "appointment_time": selected_slot['time_str'],
+            "duration": "1 hour",
+            "location": "Walter Reed Cardiology Clinic, New York, NY",
+            "facility_address": "351 Bowling Green, Ste 200, New York, NY 10001",
+            "confirmation_number": event_id,
+            "instructions": "Please arrive 15 minutes early with insurance card and referral documentation",
+            "contact": "Walter Reed Cardiology Clinic: (555) 555-0001",
+            "status": "APPOINTMENT CONFIRMED",
+            "provider": "Dr. Walter Reed",
+            "appointment_type": "New Patient Visit",
+            "is_cancelled": False
+        }
+
+    except PracticeFusionError as e:
+        logger.error(f"Practice Fusion appointment scheduling failed: {e}")
+        return {
+            "success": False,
+            "error": f"Appointment scheduling API error: {str(e)}"
+        }
+
+    except Exception as e:
+        logger.error(f"Unexpected error in appointment scheduling: {e}")
+        return {
+            "success": False,
+            "error": "An unexpected error occurred during appointment scheduling"
+        }
+
+
 @tool
 def create_patient_in_ehr(
     first_name: str,
@@ -654,18 +1107,20 @@ def schedule_appointment(
     patient_name: str,
     patient_dob: str,
     patient_phone: str,
+    patient_practice_guid: str,
     preferred_date: Optional[str] = None,
     patient_mrn: Optional[str] = None
 ) -> str:
     """
-    Schedule cardiology appointment with Dr. Walter Reed.
+    Schedule cardiology appointment with Dr. Walter Reed using real Practice Fusion API.
 
-    Available: Mondays and Thursdays, 11:00 AM - 3:00 PM, 1-hour slots
+    Available: Monday-Friday, 9:00 AM - 5:00 PM Eastern, 1-hour slots
 
     Args:
         patient_name: Patient's full name
         patient_dob: Patient's date of birth (MM/DD/YYYY)
         patient_phone: Patient's contact phone number
+        patient_practice_guid: Patient's Practice GUID from EHR creation (required)
         preferred_date: Preferred appointment date (optional)
         patient_mrn: Patient's MRN from EHR registration (optional)
 
@@ -673,55 +1128,9 @@ def schedule_appointment(
         JSON string with appointment scheduling results
     """
     import json
-    from datetime import datetime, timedelta
-
-    # Mock implementation - simulate appointment scheduling
-    # Generate next available Monday or Thursday
-    today = datetime.now()
-    days_ahead = []
-
-    # Find next Monday (weekday 0) and Thursday (weekday 3)
-    for i in range(1, 15):  # Look ahead 2 weeks
-        future_date = today + timedelta(days=i)
-        if future_date.weekday() in [0, 3]:  # Monday or Thursday
-            days_ahead.append(future_date)
-        if len(days_ahead) >= 4:  # Get 4 available slots
-            break
-
-    if days_ahead:
-        scheduled_date = days_ahead[0]  # Take first available
-        appointment_time = "11:00 AM"
-
-        result = {
-            "success": True,
-            "appointment_scheduled": True,
-            "patient_name": patient_name,
-            "patient_dob": patient_dob,
-            "patient_phone": patient_phone,
-            "appointment_date": scheduled_date.strftime("%A, %B %d, %Y"),
-            "appointment_time": appointment_time,
-            "duration": "1 hour",
-            "location": "Walter Reed Clinic, Manhattan",
-            "confirmation_number": f"WR{scheduled_date.strftime('%m%d')}{patient_name[:2].upper()}",
-            "instructions": "Please arrive 15 minutes early with insurance card and referral documentation",
-            "contact": "Dr. Reed's office: (555) 123-CARD",
-            "status": "APPOINTMENT CONFIRMED"
-        }
-
-        # Include patient MRN if provided
-        if patient_mrn:
-            result["patient_mrn"] = patient_mrn
-            result["ehr_status"] = "Patient record exists in Practice Fusion EHR"
-    else:
-        result = {
-            "success": False,
-            "appointment_scheduled": False,
-            "patient_name": patient_name,
-            "error": "No available appointments in the next 2 weeks",
-            "recommendation": "Please contact Dr. Reed's office directly at (555) 123-CARD",
-            "status": "SCHEDULING FAILED"
-        }
-
+    result = asyncio.run(_schedule_appointment_async(
+        patient_name, patient_dob, patient_phone, patient_practice_guid, preferred_date
+    ))
     return json.dumps(result, indent=2)
 
 
@@ -756,9 +1165,9 @@ TOOL_METADATA = {
     },
     'schedule_appointment': {
         'category': 'healthcare',
-        'description': 'Appointment scheduling for Dr Walter Reed clinic',
-        'api_dependency': 'mock',
-        'rate_limited': False,
+        'description': 'Real appointment scheduling for Dr Walter Reed clinic using Practice Fusion API',
+        'api_dependency': 'Practice Fusion API',
+        'rate_limited': True,
     },
     'create_patient_in_ehr': {
         'category': 'healthcare',
