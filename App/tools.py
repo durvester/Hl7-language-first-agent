@@ -21,6 +21,11 @@ class ProviderVerificationError(Exception):
     pass
 
 
+class PracticeFusionError(Exception):
+    """Custom exception for Practice Fusion API errors."""
+    pass
+
+
 class NPPESClient:
     """Client for interacting with the NPPES NPI Registry API."""
     
@@ -103,6 +108,145 @@ class NPPESClient:
                     await asyncio.sleep(wait_time)
         
         raise ProviderVerificationError("Max retries exceeded")
+
+
+class PracticeFusionClient:
+    """Client for interacting with the Practice Fusion EHR API."""
+
+    def __init__(self):
+        """Initialize the Practice Fusion client."""
+        self.base_url = config.PRACTICE_FUSION_BASE_URL
+        self.timeout = config.PRACTICE_FUSION_REQUEST_TIMEOUT
+        self.max_retries = config.PRACTICE_FUSION_MAX_RETRIES
+        self.refresh_token = config.PRACTICE_FUSION_REFRESH_TOKEN
+        self.client_id = config.PRACTICE_FUSION_CLIENT_ID
+        self.client_secret = config.PRACTICE_FUSION_CLIENT_SECRET
+        self.redirect_uri = config.PRACTICE_FUSION_REDIRECT_URI
+
+    async def get_access_token(self) -> str:
+        """
+        Get a fresh access token using the refresh token.
+        This is called for every API request (stateless approach).
+
+        Returns:
+            Access token string
+
+        Raises:
+            PracticeFusionError: If token refresh fails
+        """
+        token_url = f"{self.base_url}/ehr/oauth2/token"
+
+        data = {
+            'grant_type': 'refresh_token',
+            'refresh_token': self.refresh_token,
+            'redirect_uri': self.redirect_uri,
+            'client_id': self.client_id,
+            'client_secret': self.client_secret
+        }
+
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            for attempt in range(self.max_retries):
+                try:
+                    response = await client.post(token_url, data=data, headers=headers)
+                    response.raise_for_status()
+
+                    token_data = response.json()
+                    access_token = token_data.get('access_token')
+
+                    if not access_token:
+                        raise PracticeFusionError("No access token in response")
+
+                    logger.info("Successfully obtained fresh access token")
+                    return access_token
+
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 429:  # Rate limit
+                        wait_time = 2 ** attempt
+                        logger.warning(f"Rate limited, waiting {wait_time}s before retry {attempt + 1}")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(f"Practice Fusion token API HTTP error {e.response.status_code}: {e}")
+                        raise PracticeFusionError(f"Token API error: {e.response.status_code}")
+
+                except httpx.RequestError as e:
+                    if attempt == self.max_retries - 1:
+                        logger.error(f"Practice Fusion token API request failed after {self.max_retries} attempts: {e}")
+                        raise PracticeFusionError(f"Unable to connect to Practice Fusion API: {e}")
+
+                    wait_time = 1 * (attempt + 1)
+                    logger.warning(f"Token request failed, retrying in {wait_time}s: {e}")
+                    await asyncio.sleep(wait_time)
+
+        raise PracticeFusionError("Max retries exceeded for token refresh")
+
+    async def create_patient(self, patient_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new patient in Practice Fusion EHR.
+
+        Args:
+            patient_data: Dictionary containing patient information
+
+        Returns:
+            Dictionary containing patient creation response
+
+        Raises:
+            PracticeFusionError: If patient creation fails
+        """
+        try:
+            # Get fresh access token for this request
+            access_token = await self.get_access_token()
+
+            # Create patient endpoint
+            patient_url = f"{self.base_url}/ehr/v4/patients/"
+
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {access_token}'
+            }
+
+            logger.info(f"Creating patient in Practice Fusion: {patient_data.get('profile', {}).get('firstName', '')} {patient_data.get('profile', {}).get('lastName', '')}")
+
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                for attempt in range(self.max_retries):
+                    try:
+                        response = await client.post(patient_url, json=patient_data, headers=headers)
+                        response.raise_for_status()
+
+                        patient_response = response.json()
+                        logger.info(f"Successfully created patient with MRN: {patient_response.get('profile', {}).get('patientRecordNumber', 'Unknown')}")
+                        return patient_response
+
+                    except httpx.HTTPStatusError as e:
+                        if e.response.status_code == 429:  # Rate limit
+                            wait_time = 2 ** attempt
+                            logger.warning(f"Rate limited, waiting {wait_time}s before retry {attempt + 1}")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            logger.error(f"Practice Fusion patient API HTTP error {e.response.status_code}: {e}")
+                            raise PracticeFusionError(f"Patient creation API error: {e.response.status_code}")
+
+                    except httpx.RequestError as e:
+                        if attempt == self.max_retries - 1:
+                            logger.error(f"Practice Fusion patient API request failed after {self.max_retries} attempts: {e}")
+                            raise PracticeFusionError(f"Unable to connect to Practice Fusion API: {e}")
+
+                        wait_time = 1 * (attempt + 1)
+                        logger.warning(f"Patient creation request failed, retrying in {wait_time}s: {e}")
+                        await asyncio.sleep(wait_time)
+
+            raise PracticeFusionError("Max retries exceeded for patient creation")
+
+        except PracticeFusionError:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in patient creation: {e}")
+            raise PracticeFusionError(f"Unexpected error: {e}")
 
 
 async def _verify_provider_async(
@@ -216,6 +360,163 @@ def get_referring_provider_identity(
     """
     import json
     result = asyncio.run(_verify_provider_async(first_name, last_name, city, state, npi))
+    return json.dumps(result, indent=2)
+
+
+async def _create_patient_async(
+    first_name: str,
+    last_name: str,
+    sex: str,
+    birth_date: str,
+    email_address: Optional[str] = None,
+    mobile_phone: Optional[str] = None,
+    street_address1: Optional[str] = None,
+    street_address2: Optional[str] = None,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    postal_code: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Create a patient in Practice Fusion EHR.
+    Returns structured data for the LLM to interpret and respond to.
+    """
+    try:
+        # Validate required input
+        if not first_name or not last_name or not sex or not birth_date:
+            return {
+                "success": False,
+                "error": "First name, last name, sex, and birth date are required"
+            }
+
+        # Build patient data structure matching Practice Fusion API
+        patient_data = {
+            "profile": {
+                "sex": sex,
+                "firstName": first_name.strip(),
+                "lastName": last_name.strip(),
+                "birthDate": birth_date
+            }
+        }
+
+        # Add contact information if provided
+        if email_address or mobile_phone or street_address1:
+            contact_info = {}
+
+            if email_address:
+                contact_info["emailAddress"] = email_address.strip()
+                contact_info["doesNotHaveEmail"] = False
+            else:
+                contact_info["doesNotHaveEmail"] = True
+
+            if mobile_phone:
+                contact_info["mobilePhone"] = mobile_phone.strip()
+                contact_info["doesNotHaveMobilePhone"] = False
+            else:
+                contact_info["doesNotHaveMobilePhone"] = True
+
+            # Add address if provided
+            if street_address1 or city or state or postal_code:
+                address_info = {}
+                if street_address1:
+                    address_info["streetAddress1"] = street_address1.strip()
+                if street_address2:
+                    address_info["streetAddress2"] = street_address2.strip()
+                if city:
+                    address_info["city"] = city.strip()
+                if state:
+                    address_info["state"] = state.strip()
+                if postal_code:
+                    address_info["postalCode"] = postal_code.strip()
+
+                # Set effective dates (required by API)
+                from datetime import datetime, timedelta
+                today = datetime.now()
+                address_info["effectiveStartDate"] = today.strftime("%Y-%m-%dT00:00:00Z")
+                address_info["effectiveEndDate"] = (today + timedelta(days=365*30)).strftime("%Y-%m-%dT00:00:00Z")  # 30 years
+
+                contact_info["address"] = address_info
+
+            patient_data["contact"] = contact_info
+
+        # Create patient using Practice Fusion client
+        client = PracticeFusionClient()
+        response_data = await client.create_patient(patient_data)
+
+        # Extract patient information from response
+        profile = response_data.get("profile", {})
+        contact = response_data.get("contact", {})
+
+        return {
+            "success": True,
+            "patient_created": True,
+            "patient_mrn": profile.get("patientRecordNumber", ""),
+            "patient_practice_guid": profile.get("patientPracticeGuid", ""),
+            "practice_guid": profile.get("practiceGuid", ""),
+            "patient_name": f"{profile.get('firstName', '')} {profile.get('lastName', '')}",
+            "birth_date": profile.get("birthDate", ""),
+            "sex": profile.get("sex", ""),
+            "is_active": profile.get("isActive", False),
+            "email_address": contact.get("emailAddress", ""),
+            "mobile_phone": contact.get("mobilePhone", ""),
+            "creation_status": "Patient successfully created in Practice Fusion EHR"
+        }
+
+    except PracticeFusionError as e:
+        logger.error(f"Practice Fusion patient creation failed: {e}")
+        return {
+            "success": False,
+            "error": f"Practice Fusion API error: {str(e)}"
+        }
+
+    except Exception as e:
+        logger.error(f"Unexpected error in patient creation: {e}")
+        return {
+            "success": False,
+            "error": "An unexpected error occurred during patient creation"
+        }
+
+
+@tool
+def create_patient_in_ehr(
+    first_name: str,
+    last_name: str,
+    sex: str,
+    birth_date: str,
+    email_address: Optional[str] = None,
+    mobile_phone: Optional[str] = None,
+    street_address1: Optional[str] = None,
+    street_address2: Optional[str] = None,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    postal_code: Optional[str] = None
+) -> str:
+    """
+    Create a new patient record in Practice Fusion EHR system.
+
+    Use this tool to register a patient in the EHR after successful appointment scheduling.
+    This establishes the patient record needed for clinical documentation.
+
+    Args:
+        first_name: Patient's first name (required)
+        last_name: Patient's last name (required)
+        sex: Patient's sex (Male/Female) (required)
+        birth_date: Patient's birth date in YYYY-MM-DDTHH:MM:SSZ format (required)
+        email_address: Patient's email address (optional)
+        mobile_phone: Patient's mobile phone number (optional)
+        street_address1: Street address line 1 (optional)
+        street_address2: Street address line 2 (optional)
+        city: City (optional)
+        state: State abbreviation (optional)
+        postal_code: ZIP/postal code (optional)
+
+    Returns:
+        JSON string with patient creation results including MRN
+    """
+    import json
+    result = asyncio.run(_create_patient_async(
+        first_name, last_name, sex, birth_date, email_address, mobile_phone,
+        street_address1, street_address2, city, state, postal_code
+    ))
     return json.dumps(result, indent=2)
 
 
@@ -353,30 +654,32 @@ def schedule_appointment(
     patient_name: str,
     patient_dob: str,
     patient_phone: str,
-    preferred_date: Optional[str] = None
+    preferred_date: Optional[str] = None,
+    patient_mrn: Optional[str] = None
 ) -> str:
     """
     Schedule cardiology appointment with Dr. Walter Reed.
-    
+
     Available: Mondays and Thursdays, 11:00 AM - 3:00 PM, 1-hour slots
-    
+
     Args:
         patient_name: Patient's full name
         patient_dob: Patient's date of birth (MM/DD/YYYY)
         patient_phone: Patient's contact phone number
         preferred_date: Preferred appointment date (optional)
-        
+        patient_mrn: Patient's MRN from EHR registration (optional)
+
     Returns:
         JSON string with appointment scheduling results
     """
     import json
     from datetime import datetime, timedelta
-    
+
     # Mock implementation - simulate appointment scheduling
     # Generate next available Monday or Thursday
     today = datetime.now()
     days_ahead = []
-    
+
     # Find next Monday (weekday 0) and Thursday (weekday 3)
     for i in range(1, 15):  # Look ahead 2 weeks
         future_date = today + timedelta(days=i)
@@ -384,11 +687,11 @@ def schedule_appointment(
             days_ahead.append(future_date)
         if len(days_ahead) >= 4:  # Get 4 available slots
             break
-    
+
     if days_ahead:
         scheduled_date = days_ahead[0]  # Take first available
         appointment_time = "11:00 AM"
-        
+
         result = {
             "success": True,
             "appointment_scheduled": True,
@@ -404,6 +707,11 @@ def schedule_appointment(
             "contact": "Dr. Reed's office: (555) 123-CARD",
             "status": "APPOINTMENT CONFIRMED"
         }
+
+        # Include patient MRN if provided
+        if patient_mrn:
+            result["patient_mrn"] = patient_mrn
+            result["ehr_status"] = "Patient record exists in Practice Fusion EHR"
     else:
         result = {
             "success": False,
@@ -413,7 +721,7 @@ def schedule_appointment(
             "recommendation": "Please contact Dr. Reed's office directly at (555) 123-CARD",
             "status": "SCHEDULING FAILED"
         }
-    
+
     return json.dumps(result, indent=2)
 
 
@@ -422,7 +730,8 @@ TOOLS = [
     get_referring_provider_identity,
     verify_insurance_coverage,
     validate_clinical_criteria,
-    schedule_appointment
+    schedule_appointment,
+    create_patient_in_ehr
 ]
 
 # Optional: Tool metadata for introspection
@@ -450,5 +759,11 @@ TOOL_METADATA = {
         'description': 'Appointment scheduling for Dr Walter Reed clinic',
         'api_dependency': 'mock',
         'rate_limited': False,
+    },
+    'create_patient_in_ehr': {
+        'category': 'healthcare',
+        'description': 'Patient record creation in Practice Fusion EHR system',
+        'api_dependency': 'Practice Fusion API',
+        'rate_limited': True,
     }
 }

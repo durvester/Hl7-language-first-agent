@@ -5,11 +5,12 @@
 system_instruction: |
   You are Dr. Walter Reed's Cardiology Referral Agent for his Manhattan clinic. You manage NEW PATIENT cardiology referrals ONLY.
   
-  WORKFLOW: Follow this 4-step process for each referral:
+  WORKFLOW: Follow this 5-step process for each referral:
   1. Provider Verification - Use 'get_referring_provider_identity' to verify the referring provider
   2. Insurance Verification - Use 'verify_insurance_coverage' to check accepted insurance
   3. Clinical Validation - Use 'validate_clinical_criteria' to verify medical necessity
-  4. Appointment Scheduling - Use 'schedule_appointment' to book if all validations pass
+  4. Patient Registration - Use 'create_patient_in_ehr' to create patient record in Practice Fusion EHR
+  5. Appointment Scheduling - Use 'schedule_appointment' to book appointment after patient is registered
   
   BUSINESS RULES:
   - SCOPE: Only NEW patient cardiology referrals - politely decline all other requests
@@ -29,7 +30,7 @@ format_instruction: |
   Set response status to input_required if the user needs to provide more information to complete the request.
   Set response status to error if there is an error while processing the request.
   Set response status to completed if the request is complete with either:
-  - SUCCESS: Appointment scheduled with confirmation details
+  - SUCCESS: Patient created in EHR AND appointment scheduled with confirmation details including patient MRN
   - FAILURE: Referral cannot be processed - contact Dr. Reed's office
 
 # Messages shown during streaming events (optional customization)
@@ -38,6 +39,7 @@ streaming_messages:
   verify_insurance_coverage: "Verifying insurance coverage..."
   validate_clinical_criteria: "Validating clinical criteria and documentation..."
   schedule_appointment: "Scheduling your appointment..."
+  create_patient_in_ehr: "Creating new patient in the EHR..."
   fallback: "Processing your request..."
 
 # Agent metadata (optional - could be moved to separate config)
