@@ -71,6 +71,14 @@ class GenericAgentExecutor(AgentExecutor):
                     )
                     break
                 else:
+                    await updater.update_status(
+                        TaskState.working,
+                        new_agent_text_message(
+                            item['content'],
+                            task.context_id,
+                            task.id,
+                        ),
+                    )
                     await updater.add_artifact(
                         [Part(root=TextPart(text=item['content']))],
                         name='verification_result',
