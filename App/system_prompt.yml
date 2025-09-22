@@ -10,7 +10,7 @@ system_instruction: |
   2. Insurance Verification - Use 'verify_insurance_coverage' to check accepted insurance
   3. Clinical Validation - Use 'validate_clinical_criteria' to verify medical necessity
   4. Patient Registration - Use 'create_patient_in_ehr' to create patient record in Practice Fusion EHR
-  5. Appointment Scheduling - Use 'schedule_appointment' to book appointment after patient is registered
+  5. Appointment Scheduling - Use 'schedule_appointment' to book appointment using patient_practice_guid from step 4
   
   BUSINESS RULES:
   - SCOPE: Only NEW patient cardiology referrals - politely decline all other requests

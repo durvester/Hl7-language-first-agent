@@ -625,12 +625,7 @@ async def _create_patient_async(
     sex: str,
     birth_date: str,
     email_address: Optional[str] = None,
-    mobile_phone: Optional[str] = None,
-    street_address1: Optional[str] = None,
-    street_address2: Optional[str] = None,
-    city: Optional[str] = None,
-    state: Optional[str] = None,
-    postal_code: Optional[str] = None
+    mobile_phone: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Create a patient in Practice Fusion EHR.
@@ -655,7 +650,7 @@ async def _create_patient_async(
         }
 
         # Add contact information if provided
-        if email_address or mobile_phone or street_address1:
+        if email_address or mobile_phone:
             contact_info = {}
 
             if email_address:
@@ -669,28 +664,6 @@ async def _create_patient_async(
                 contact_info["doesNotHaveMobilePhone"] = False
             else:
                 contact_info["doesNotHaveMobilePhone"] = True
-
-            # Add address if provided
-            if street_address1 or city or state or postal_code:
-                address_info = {}
-                if street_address1:
-                    address_info["streetAddress1"] = street_address1.strip()
-                if street_address2:
-                    address_info["streetAddress2"] = street_address2.strip()
-                if city:
-                    address_info["city"] = city.strip()
-                if state:
-                    address_info["state"] = state.strip()
-                if postal_code:
-                    address_info["postalCode"] = postal_code.strip()
-
-                # Set effective dates (required by API)
-                from datetime import datetime, timedelta
-                today = datetime.now()
-                address_info["effectiveStartDate"] = today.strftime("%Y-%m-%dT00:00:00Z")
-                address_info["effectiveEndDate"] = (today + timedelta(days=365*30)).strftime("%Y-%m-%dT00:00:00Z")  # 30 years
-
-                contact_info["address"] = address_info
 
             patient_data["contact"] = contact_info
 
@@ -936,12 +909,7 @@ def create_patient_in_ehr(
     sex: str,
     birth_date: str,
     email_address: Optional[str] = None,
-    mobile_phone: Optional[str] = None,
-    street_address1: Optional[str] = None,
-    street_address2: Optional[str] = None,
-    city: Optional[str] = None,
-    state: Optional[str] = None,
-    postal_code: Optional[str] = None
+    mobile_phone: Optional[str] = None
 ) -> str:
     """
     Create a new patient record in Practice Fusion EHR system.
@@ -956,19 +924,13 @@ def create_patient_in_ehr(
         birth_date: Patient's birth date in YYYY-MM-DDTHH:MM:SSZ format (required)
         email_address: Patient's email address (optional)
         mobile_phone: Patient's mobile phone number (optional)
-        street_address1: Street address line 1 (optional)
-        street_address2: Street address line 2 (optional)
-        city: City (optional)
-        state: State abbreviation (optional)
-        postal_code: ZIP/postal code (optional)
 
     Returns:
         JSON string with patient creation results including MRN
     """
     import json
     result = asyncio.run(_create_patient_async(
-        first_name, last_name, sex, birth_date, email_address, mobile_phone,
-        street_address1, street_address2, city, state, postal_code
+        first_name, last_name, sex, birth_date, email_address, mobile_phone
     ))
     return json.dumps(result, indent=2)
 
