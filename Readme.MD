@@ -1,10 +1,17 @@
 # LangGraph Cardiology Referral Agent with A2A Protocol
 
-This sample demonstrates a healthcare provider verification agent built with [LangGraph](https://langchain-ai.github.io/langgraph/) and exposed through the A2A protocol. It specializes in verifying healthcare provider identities for cardiology referrals to Dr. Walter Reed's clinic, enabling secure and compliant patient referral workflows.
+This sample demonstrates a complete cardiology referral workflow agent built with [LangGraph](https://langchain-ai.github.io/langgraph/) and exposed through the A2A protocol. It manages the entire process of NEW PATIENT cardiology referrals to Dr. Walter Reed's Manhattan clinic, from provider verification through appointment scheduling with real EHR integration.
 
 ## How It Works
 
-This agent uses LangGraph with LLM (Claude-3.5-Sonnet) to verify healthcare provider identities through the NPPES NPI Registry using a ReAct agent pattern. The A2A protocol enables standardized interaction with the agent, allowing referring providers to verify their credentials for secure patient referrals.
+This agent uses LangGraph with Claude-3.5-Sonnet to manage a complete 5-step cardiology referral workflow using a ReAct agent pattern. The A2A protocol enables standardized interaction, allowing referring providers to submit complete referrals that result in scheduled appointments with real EHR integration via Practice Fusion API.
+
+### 5-Step Referral Workflow
+1. **Provider Verification** - Validates referring provider through NPPES NPI Registry
+2. **Insurance Verification** - Confirms accepted insurance coverage (United Healthcare, Aetna, Cigna, BCBS, Kaiser)
+3. **Clinical Validation** - Reviews medical necessity and documentation requirements
+4. **Patient Registration** - Creates patient record in Practice Fusion EHR system
+5. **Appointment Scheduling** - Books real appointment with Dr. Walter Reed (Monday-Friday, 9AM-5PM)
 
 ```mermaid
 sequenceDiagram
@@ -12,42 +19,56 @@ sequenceDiagram
     participant Server as A2A Server
     participant Agent as LangGraph Agent
     participant NPPES as NPPES NPI Registry
+    participant PF as Practice Fusion EHR
 
-    Provider->>Server: Send referral request with provider info
-    Server->>Agent: Forward provider verification request
-    
-    alt Complete Provider Information
-        Agent->>NPPES: Call get_referring_provider_identity tool
-        NPPES->>Agent: Return provider verification data
-        Agent->>Server: Process data & return verification result
-        Server->>Provider: Respond with verification status
-    else Incomplete Provider Information
-        Agent->>Server: Request additional provider details
-        Server->>Provider: Set state to "input-required"
-        Provider->>Server: Send additional information (NPI, city, state)
-        Server->>Agent: Forward additional provider info
-        Agent->>NPPES: Call get_referring_provider_identity tool
-        NPPES->>Agent: Return provider verification data
-        Agent->>Server: Process data & return verification result
-        Server->>Provider: Respond with verification status
-    end
+    Provider->>Server: Submit cardiology referral request
+    Server->>Agent: Process referral workflow
 
-    alt With Streaming
-        Note over Provider,Server: Real-time status updates
+    Note over Agent: Step 1: Provider Verification
+    Agent->>NPPES: Verify referring provider identity
+    NPPES->>Agent: Return provider data
+
+    Note over Agent: Step 2: Insurance Verification
+    Agent->>Agent: Check insurance acceptance
+
+    Note over Agent: Step 3: Clinical Validation
+    Agent->>Agent: Validate medical necessity
+
+    Note over Agent: Step 4: Patient Registration
+    Agent->>PF: Create patient in EHR
+    PF->>Agent: Return patient_practice_guid
+
+    Note over Agent: Step 5: Appointment Scheduling
+    Agent->>PF: Check availability & book appointment
+    PF->>Agent: Return appointment confirmation
+
+    Agent->>Server: Complete referral with appointment details
+    Server->>Provider: Appointment confirmed with details
+
+    alt With Streaming Updates
+        Note over Provider,Server: Real-time workflow progress
         Server->>Provider: "Looking up the referring provider's identity..."
-        Server->>Provider: "Processing the referring provider's identity.."
-        Server->>Provider: Final verification result
+        Server->>Provider: "Verifying insurance coverage..."
+        Server->>Provider: "Validating clinical criteria..."
+        Server->>Provider: "Creating new patient in the EHR..."
+        Server->>Provider: "Scheduling your appointment..."
+        Server->>Provider: Final appointment confirmation
     end
 ```
 
 ## Key Features
 
+- **Complete Referral Workflow**: End-to-end cardiology referral processing from provider verification to appointment booking
 - **Provider Identity Verification**: Uses official NPPES NPI Registry for healthcare provider authentication
-- **Multi-turn Conversations**: Agent can request additional information (NPI, location) when needed
-- **Real-time Streaming**: Provides status updates during verification processing
+- **Insurance Coverage Verification**: Validates accepted insurance plans (United Healthcare, Aetna, Cigna, BCBS, Kaiser)
+- **Clinical Criteria Validation**: Reviews medical necessity and documentation requirements for cardiology referrals
+- **Real EHR Integration**: Creates actual patient records in Practice Fusion EHR system
+- **Live Appointment Scheduling**: Books real appointments with conflict checking and availability validation
+- **Multi-turn Conversations**: Agent requests additional information when needed throughout the workflow
+- **Real-time Streaming**: Provides status updates during each step of the referral process
 - **Push Notifications**: Support for webhook-based notifications
-- **Conversational Memory**: Maintains context across verification interactions
-- **NPPES Integration**: Direct integration with CMS National Provider Identifier registry
+- **Conversational Memory**: Maintains context across the entire referral workflow
+- **Dependency Management**: Ensures patient registration completes before appointment scheduling
 
 ## Prerequisites
 
@@ -118,23 +139,28 @@ Agent can also be built using a container file.
 
 ## Technical Implementation
 
-- **LangGraph ReAct Agent**: Uses the ReAct pattern for reasoning and NPPES tool usage
-- **Streaming Support**: Provides incremental updates during provider verification
-- **Checkpoint Memory**: Maintains conversation state between verification turns
+- **LangGraph ReAct Agent**: Uses the ReAct pattern for reasoning and healthcare tool orchestration
+- **5-Tool Integration**: Provider verification (NPPES), insurance verification, clinical validation, patient creation (Practice Fusion), appointment scheduling (Practice Fusion)
+- **Streaming Support**: Provides incremental updates during each workflow step
+- **Checkpoint Memory**: Maintains conversation state throughout the entire referral process
 - **Push Notification System**: Webhook-based updates with JWK authentication
 - **A2A Protocol Integration**: Full compliance with A2A specifications
-- **NPPES Integration**: Robust error handling and rate limiting for CMS API calls
+- **External API Integration**: Robust error handling and rate limiting for NPPES and Practice Fusion APIs
+- **Configurable System**: YAML-based configuration for prompts and workflow definition
 
 ## Limitations
 
-- Only supports text-based input/output (no multi-modal support)
-- Uses NPPES API which may have rate limits during peak usage
-- Memory is session-based and not persisted between server restarts
-- Provider verification limited to US healthcare providers in NPPES registry
+- **Scope**: Only supports NEW patient cardiology referrals to Dr. Walter Reed's clinic
+- **Insurance**: Limited to accepted plans (United Healthcare, Aetna, Cigna, BCBS, Kaiser)
+- **Scheduling**: Appointments only available Monday-Friday, 9AM-5PM Eastern
+- **Geography**: Provider verification limited to US healthcare providers in NPPES registry
+- **Input**: Only supports text-based input/output (no multi-modal support)
+- **APIs**: Subject to rate limits from NPPES and Practice Fusion APIs
+- **Memory**: Session-based memory not persisted between server restarts
 
 ## Examples
 
-**Synchronous provider verification request**
+**Complete Cardiology Referral Workflow**
 
 Request:
 
@@ -153,7 +179,7 @@ Content-Type: application/json
             "parts": [
                 {
                     "kind": "text",
-                    "text": "I need to verify Dr. John Smith from Chicago, IL for a cardiology referral"
+                    "text": "I'm Dr. Sarah Johnson from Boston, MA (NPI: 1234567890). I need to refer my patient John Doe (DOB: 1980-05-15, United Healthcare, phone: 555-123-4567, email: john.doe@email.com) to Dr. Walter Reed for chest pain evaluation. Patient has recent abnormal ECG and family history of cardiac disease."
                 }
             ],
             "role": "user"
@@ -162,7 +188,7 @@ Content-Type: application/json
 }
 ```
 
-Response:
+Response (Final):
 
 ```
 {
@@ -172,57 +198,16 @@ Response:
         "artifacts": [
             {
                 "artifactId": "08373241-a745-4abe-a78b-9ca60882bcc6",
-                "name": "verification_result",
+                "name": "appointment_confirmation",
                 "parts": [
                     {
                         "kind": "text",
-                        "text": "Found 2 provider(s) matching 'John Smith' in Chicago, IL:\n\n1. Dr. John Michael Smith, MD\n   NPI: 1234567890\n   Status: Active\n   Location: Chicago, IL\n   Enumeration Date: 2015-03-15\n\n2. Dr. John Robert Smith, DO\n   NPI: 0987654321\n   Status: Active\n   Location: Chicago, IL\n   Enumeration Date: 2018-07-22\n\nYour identity has been verified. Please confirm which provider above matches you for accurate referral processing."
+                        "text": "✅ APPOINTMENT CONFIRMED\n\nPatient: John Doe (MRN: 12345)\nAppointment: Tuesday, October 15, 2024 at 2:00 PM\nDuration: 1 hour\nProvider: Dr. Walter Reed\nLocation: Walter Reed Cardiology Clinic\nAddress: 351 Bowling Green, Ste 200, New York, NY 10001\nConfirmation Number: APT-789012\n\nInstructions: Please arrive 15 minutes early with insurance card and referral documentation\nContact: Walter Reed Cardiology Clinic: (555) 555-0001\n\nYour referral has been successfully processed through our complete 5-step workflow:\n1. ✅ Provider verified (Dr. Sarah Johnson, NPI: 1234567890)\n2. ✅ Insurance accepted (United Healthcare)\n3. ✅ Clinical criteria met (chest pain with abnormal ECG)\n4. ✅ Patient registered in EHR (MRN: 12345)\n5. ✅ Appointment scheduled and confirmed"
                     }
                 ]
             }
         ],
         "contextId": "e329f200-eaf4-4ae9-a8ef-a33cf9485367",
-        "history": [
-            {
-                "contextId": "e329f200-eaf4-4ae9-a8ef-a33cf9485367",
-                "kind": "message",
-                "messageId": "120ec73f93024993becf954d03a672bc",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "I need to verify Dr. John Smith from Chicago, IL for a cardiology referral"
-                    }
-                ],
-                "role": "user",
-                "taskId": "58124b63-dd3b-46b8-bf1d-1cc1aefd1c8f"
-            },
-            {
-                "contextId": "e329f200-eaf4-4ae9-a8ef-a33cf9485367",
-                "kind": "message",
-                "messageId": "d8b4d7de-709f-40f7-ae0c-fd6ee398a2bf",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "Looking up the referring provider's identity..."
-                    }
-                ],
-                "role": "agent",
-                "taskId": "58124b63-dd3b-46b8-bf1d-1cc1aefd1c8f"
-            },
-            {
-                "contextId": "e329f200-eaf4-4ae9-a8ef-a33cf9485367",
-                "kind": "message",
-                "messageId": "ee0cb3b6-c3d6-4316-8d58-315c437a2a77",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "Processing the referring provider's identity.."
-                    }
-                ],
-                "role": "agent",
-                "taskId": "58124b63-dd3b-46b8-bf1d-1cc1aefd1c8f"
-            }
-        ],
         "id": "58124b63-dd3b-46b8-bf1d-1cc1aefd1c8f",
         "kind": "task",
         "status": {
@@ -232,208 +217,14 @@ Response:
 }
 ```
 
-**Multi-turn provider verification example**
+**Streaming Workflow Example**
 
-Request - Seq 1:
-
-```
-POST http://localhost:10000
-Content-Type: application/json
-
-{
-    "id": "27be771b-708f-43b8-8366-968966d07ec0",
-    "jsonrpc": "2.0",
-    "method": "message/send",
-    "params": {
-        "message": {
-            "kind": "message",
-            "messageId": "296eafc9233142bd98279e4055165f12",
-            "parts": [
-                {
-                    "kind": "text",
-                    "text": "I am Dr. Sarah Johnson and need to refer a patient to Dr Walter Reed"
-                }
-            ],
-            "role": "user"
-        }
-    }
-}
-```
-
-Response - Seq 2:
-
-```
-{
-    "id": "27be771b-708f-43b8-8366-968966d07ec0",
-    "jsonrpc": "2.0",
-    "result": {
-        "contextId": "a7cc0bef-17b5-41fc-9379-40b99f46a101",
-        "history": [
-            {
-                "contextId": "a7cc0bef-17b5-41fc-9379-40b99f46a101",
-                "kind": "message",
-                "messageId": "296eafc9233142bd98279e4055165f12",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "I am Dr. Sarah Johnson and need to refer a patient to Dr Walter Reed"
-                    }
-                ],
-                "role": "user",
-                "taskId": "9d94c2d4-06e4-40e1-876b-22f5a2666e61"
-            }
-        ],
-        "id": "9d94c2d4-06e4-40e1-876b-22f5a2666e61",
-        "kind": "task",
-        "status": {
-            "message": {
-                "contextId": "a7cc0bef-17b5-41fc-9379-40b99f46a101",
-                "kind": "message",
-                "messageId": "f0f5f3ff-335c-4e77-9b4a-01ff3908e7be",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "To verify your identity for referrals to Dr Walter Reed, I need your complete information. Please provide your city and state, or your NPI number for verification."
-                    }
-                ],
-                "role": "agent",
-                "taskId": "9d94c2d4-06e4-40e1-876b-22f5a2666e61"
-            },
-            "state": "input-required"
-        }
-    }
-}
-```
-
-Request - Seq 3:
+For streaming responses, use `/message/stream` endpoint to receive real-time updates during the 5-step process:
 
 ```
 POST http://localhost:10000
 Content-Type: application/json
 
-{
-    "id": "b88d818d-1192-42be-b4eb-3ee6b96a7e35",
-    "jsonrpc": "2.0",
-    "method": "message/send",
-    "params": {
-        "message": {
-            "contextId": "a7cc0bef-17b5-41fc-9379-40b99f46a101",
-            "kind": "message",
-            "messageId": "70371e1f231f4597b65ccdf534930ca9",
-            "parts": [
-                {
-                    "kind": "text",
-                    "text": "My NPI is 1234567890 and I practice in Boston, MA"
-                }
-            ],
-            "role": "user",
-            "taskId": "9d94c2d4-06e4-40e1-876b-22f5a2666e61"
-        }
-    }
-}
-```
-
-Response - Seq 4:
-
-```
-{
-    "id": "b88d818d-1192-42be-b4eb-3ee6b96a7e35",
-    "jsonrpc": "2.0",
-    "result": {
-        "artifacts": [
-            {
-                "artifactId": "08373241-a745-4abe-a78b-9ca60882bcc6",
-                "name": "verification_result",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "Identity verified: Dr. Sarah Elizabeth Johnson, MD\nNPI: 1234567890\nStatus: Active\nLocation: Boston, MA\nYour identity has been successfully verified for referrals to Dr Walter Reed."
-                    }
-                ]
-            }
-        ],
-        "contextId": "a7cc0bef-17b5-41fc-9379-40b99f46a101",
-        "history": [
-            {
-                "contextId": "a7cc0bef-17b5-41fc-9379-40b99f46a101",
-                "kind": "message",
-                "messageId": "296eafc9233142bd98279e4055165f12",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "I am Dr. Sarah Johnson and need to refer a patient to Dr Walter Reed"
-                    }
-                ],
-                "role": "user",
-                "taskId": "9d94c2d4-06e4-40e1-876b-22f5a2666e61"
-            },
-            {
-                "contextId": "a7cc0bef-17b5-41fc-9379-40b99f46a101",
-                "kind": "message",
-                "messageId": "f0f5f3ff-335c-4e77-9b4a-01ff3908e7be",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "To verify your identity for referrals to Dr Walter Reed, I need your complete information. Please provide your city and state, or your NPI number for verification."
-                    }
-                ],
-                "role": "agent",
-                "taskId": "9d94c2d4-06e4-40e1-876b-22f5a2666e61"
-            },
-            {
-                "contextId": "a7cc0bef-17b5-41fc-9379-40b99f46a101",
-                "kind": "message",
-                "messageId": "70371e1f231f4597b65ccdf534930ca9",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "My NPI is 1234567890 and I practice in Boston, MA"
-                    }
-                ],
-                "role": "user",
-                "taskId": "9d94c2d4-06e4-40e1-876b-22f5a2666e61"
-            },
-            {
-                "contextId": "a7cc0bef-17b5-41fc-9379-40b99f46a101",
-                "kind": "message",
-                "messageId": "0eb4f200-a8cd-4d34-94f8-4d223eb1b2c0",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "Looking up the referring provider's identity..."
-                    }
-                ],
-                "role": "agent",
-                "taskId": "9d94c2d4-06e4-40e1-876b-22f5a2666e61"
-            },
-            {
-                "contextId": "a7cc0bef-17b5-41fc-9379-40b99f46a101",
-                "kind": "message",
-                "messageId": "41c7c03a-a772-4dc8-a868-e8c7b7defc91",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "Processing the referring provider's identity.."
-                    }
-                ],
-                "role": "agent",
-                "taskId": "9d94c2d4-06e4-40e1-876b-22f5a2666e61"
-            }
-        ],
-        "id": "9d94c2d4-06e4-40e1-876b-22f5a2666e61",
-        "kind": "task",
-        "status": {
-            "state": "completed"
-        }
-    }
-}
-```
-
-**Streaming provider verification example**
-
-Request:
-
-```
 {
     "id": "6d12d159-ec67-46e6-8d43-18480ce7f6ca",
     "jsonrpc": "2.0",
@@ -445,7 +236,7 @@ Request:
             "parts": [
                 {
                     "kind": "text",
-                    "text": "I need to verify Dr. John Smith from Chicago, IL for a cardiology referral"
+                    "text": "I'm Dr. Sarah Johnson from Boston, MA. I need to refer my patient John Doe for chest pain evaluation. He has United Healthcare insurance."
                 }
             ],
             "role": "user"
@@ -454,18 +245,16 @@ Request:
 }
 ```
 
-Response:
+Response (streaming):
 
 ```
-data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","history":[{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"message","messageId":"2f9538ef0984471aa0d5179ce3c67a28","parts":[{"kind":"text","text":"I need to verify Dr. John Smith from Chicago, IL for a cardiology referral"}],"role":"user","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}],"id":"423a2569-f272-4d75-a4d1-cdc6682188e5","kind":"task","status":{"state":"submitted"}}}
-
-data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","final":false,"kind":"status-update","status":{"message":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"message","messageId":"1854a825-c64f-4f30-96f2-c8aa558b83f9","parts":[{"kind":"text","text":"Looking up the referring provider's identity..."}],"role":"agent","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"},"state":"working"},"taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}}
-
-data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","final":false,"kind":"status-update","status":{"message":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"message","messageId":"e72127a6-4830-4320-bf23-235ac79b9a13","parts":[{"kind":"text","text":"Processing the referring provider's identity.."}],"role":"agent","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"},"state":"working"},"taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}}
-
-data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"artifact":{"artifactId":"08373241-a745-4abe-a78b-9ca60882bcc6","name":"verification_result","parts":[{"kind":"text","text":"Identity verified: Dr. John Michael Smith, MD\nNPI: 1234567890\nStatus: Active\nLocation: Chicago, IL\nYour identity has been successfully verified for referrals to Dr Walter Reed."}]},"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","kind":"artifact-update","taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}}
-
-data: {"id":"6d12d159-ec67-46e6-8d43-18480ce7f6ca","jsonrpc":"2.0","result":{"contextId":"cd09e369-340a-4563-bca4-e5f2e0b9ff81","final":true,"kind":"status-update","status":{"state":"completed"},"taskId":"423a2569-f272-4d75-a4d1-cdc6682188e5"}}
+data: {"status":{"message":"Looking up the referring provider's identity...","state":"working"}}
+data: {"status":{"message":"Verifying insurance coverage...","state":"working"}}
+data: {"status":{"message":"Validating clinical criteria...","state":"working"}}
+data: {"status":{"message":"Creating new patient in the EHR...","state":"working"}}
+data: {"status":{"message":"Scheduling your appointment...","state":"working"}}
+data: {"artifact":{"name":"appointment_confirmation","text":"✅ APPOINTMENT CONFIRMED..."}}
+data: {"status":{"state":"completed"}}
 ```
 
 ## Learn More
